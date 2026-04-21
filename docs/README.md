@@ -96,14 +96,6 @@ Capability artifacts:
 
 All artifact classes should remain readable and easy to index for both humans and AI agents.
 
-## Status
-
-The repository has a working v0.0.1 bootstrap foundation with init, detection, managed tools, generated fates, skill export, and OpenCode-compatible agent export.
-
-The optional planner/specifier specialist is documented as a concept for v0.0.1, but workflow and invocation are still deferred.
-
-The runtime slice now includes local spindle-backed warp records and direct runtime assignment management for weave/thread ownership.
-
 ## Documentation
 
 - `docs/getting-started.md` - Quick start guide
