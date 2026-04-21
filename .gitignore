@@ -1,0 +1,6 @@
+.norn
+dist/
+bin/
+coverage.out
+*.test
+.idea
