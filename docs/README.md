@@ -104,15 +104,6 @@ The optional planner/specifier specialist is documented as a concept for v0.0.1,
 
 The runtime slice now includes local spindle-backed warp records and direct runtime assignment management for weave/thread ownership.
 
-## Session Handoff
-
-For a fresh session or a new machine, start with:
-
-1. `AGENTS.md`
-2. `.norn/memory/next-session-bootstrap.md`
-3. the memory files under `.norn/memory/`
-4. Fizzy cards `#21`, `#23`
-
 ## Documentation
 
 - `docs/getting-started.md` - Quick start guide
@@ -121,11 +112,3 @@ For a fresh session or a new machine, start with:
 - `docs/opencode.md` - OpenCode integration guide
 - `docs/opencode-integration.md` - Living specification
 - `docs/decisions.md` - Key design decisions
-
-## Shared Tracking
-
-Norn development is also tracked in the Fizzy board `Norn`.
-
-- Use Fizzy for shared roadmap and task visibility.
-- Use repository files for architecture, standards, and handoff memory.
-- Agents should treat Fizzy as read-only unless the user explicitly asks for board updates.
