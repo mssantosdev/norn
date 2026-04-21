@@ -87,14 +87,10 @@ func applyDefaults(runes *RuneFile, root string) {
 		runes.Planning.Mode = PlanningModeFolder
 	}
 	if runes.Planning.Path == "" {
-		if runes.Planning.Mode == PlanningModeBranch {
-			runes.Planning.Path = ".loom"
-		} else {
-			runes.Planning.Path = "loom"
-		}
+		runes.Planning.Path = ".norn"
 	}
 	if runes.Overlay.Path == "" {
-		runes.Overlay.Path = ".norn/loom"
+		runes.Overlay.Path = ".norn"
 	}
 	if runes.Planning.DefaultSurface == "" {
 		runes.Planning.DefaultSurface = "shared"
@@ -282,15 +278,28 @@ func dedupeSorted(items []string) []string {
 }
 
 func SharedPlanningRoot(w Workspace) string {
-	return filepath.Join(w.Root, w.Runes.Planning.Path)
+	return filepath.Join(w.Root, ".norn")
 }
 
 func OverlayPlanningRoot(w Workspace) string {
-	return filepath.Join(w.Root, w.Runes.Overlay.Path)
+	return filepath.Join(w.Root, ".norn")
 }
 
+func WeavesRoot(w Workspace) string {
+	return filepath.Join(w.Root, ".norn", "weaves")
+}
+
+func PatternsRoot(w Workspace) string {
+	return filepath.Join(w.Root, ".norn", "patterns")
+}
+
+func ToolsRoot(w Workspace) string {
+	return filepath.Join(w.Root, ".norn", "tools")
+}
+
+// CommandsRoot is deprecated, use ToolsRoot
 func CommandsRoot(w Workspace) string {
-	return filepath.Join(w.Root, ".norn", "commands")
+	return ToolsRoot(w)
 }
 
 func SkillsRoot(w Workspace) string {

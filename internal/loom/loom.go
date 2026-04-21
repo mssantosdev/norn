@@ -14,11 +14,7 @@ import (
 func Ensure(root string, options norn.InitOptions) (string, error) {
 	path := options.PlanningPath
 	if path == "" {
-		if options.Mode == norn.PlanningModeBranch {
-			path = ".loom"
-		} else {
-			path = "loom"
-		}
+		path = ".norn"
 	}
 	fullPath := filepath.Join(root, path)
 	if options.Mode == norn.PlanningModeBranch {
@@ -45,7 +41,7 @@ func Ensure(root string, options norn.InitOptions) (string, error) {
 
 func ensureBranchWorktree(root, path, branch string, create bool) error {
 	if branch == "" {
-		branch = "loom"
+		branch = "norn-planning"
 	}
 	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
 		return fmt.Errorf("planning branch mode requires a git root")

@@ -10,16 +10,14 @@
 - `skill` - reusable capability
 - `rune` - configuration
 - `warp` - worktree lane
-- `loom` - durable planning surface
+- `.norn` - durable planning and coordination surface
 - `spindle` - runtime coordination surface
 
 ## Planning Model
 
-Shared planning lives in `loom/` by default.
+All Norn artifacts live under `.norn/` by default.
 
-Local-only planning can live in `.norn/loom/` and is overlaid with the shared plan set.
-
-When branch mode is selected, Norn creates or reuses a planning branch and checks it out as a dedicated worktree, defaulting to `.loom/`.
+Planning branch mode and shared/local overlays are deferred to v0.0.2.
 
 ## Artifact Taxonomy
 
@@ -39,8 +37,9 @@ Examples:
 
 Locations:
 
-- shared: `loom/`
-- local overlay: `.norn/loom/`
+- `.norn/weaves/`
+- `.norn/patterns/`
+- `.norn/threads/` (under weaves)
 
 ### Capability Artifacts
 
@@ -56,7 +55,7 @@ Locations:
 
 - `.norn/fates/`
 - `.norn/skills/`
-- `.norn/commands/`
+- `.norn/tools/`
 
 These artifacts should remain plain-text or structured-text and easy to search, index, and render.
 
@@ -104,33 +103,33 @@ Memory artifacts preserve compacted history, rationale, and handoff continuity a
 
 Location:
 
-- `.norn/loom/memory/`
+- `.norn/memory/`
 
 ## Default Directory Standard
 
 ### Shared Planning
 
-- `loom/README.md`
-- `loom/constitution.md`
-- `loom/weaves/<weave-id>/README.md`
-- `loom/weaves/<weave-id>/threads.md`
-- `loom/weaves/<weave-id>/threads/<thread-id>.md`
-- `loom/patterns/<pattern-id>.md`
-- `loom/docs/<doc-id>.md`
+- `.norn/README.md`
+- `.norn/constitution.md`
+- `.norn/weaves/<weave-id>/README.md`
+- `.norn/weaves/<weave-id>/threads.md`
+- `.norn/weaves/<weave-id>/threads/<thread-id>.md`
+- `.norn/patterns/<pattern-id>.md`
+- `.norn/docs/<doc-id>.md`
 
 ### Local Planning Overlay
 
-- `.norn/loom/weaves/<weave-id>/README.md`
-- `.norn/loom/weaves/<weave-id>/threads.md`
-- `.norn/loom/weaves/<weave-id>/threads/<thread-id>.md`
-- `.norn/loom/patterns/<pattern-id>.md`
-- `.norn/loom/docs/<doc-id>.md`
+- `.norn/weaves/<weave-id>/README.md`
+- `.norn/weaves/<weave-id>/threads.md`
+- `.norn/weaves/<weave-id>/threads/<thread-id>.md`
+- `.norn/patterns/<pattern-id>.md`
+- `.norn/docs/<doc-id>.md`
 
 ### Capability Artifacts
 
 - `.norn/fates/<fate-id>.yaml`
 - `.norn/skills/<skill-id>.md`
-- `.norn/commands/<command-id>.yaml`
+- `.norn/tools/<tool-id>.yaml`
 
 ### Runtime Coordination
 
@@ -169,10 +168,10 @@ Direct runtime assignment management currently includes:
 
 ### Memory
 
-- `.norn/loom/memory/decisions.md`
-- `.norn/loom/memory/conversation-summary.md`
-- `.norn/loom/memory/roadmap-v0.0.1.md`
-- `.norn/loom/memory/patterns.md`
+- `.norn/memory/decisions.md`
+- `.norn/memory/conversation-summary.md`
+- `.norn/memory/roadmap-v0.0.1.md`
+- `.norn/memory/patterns.md`
 
 ### Configuration
 
@@ -274,8 +273,39 @@ In workspace mode, Norn coordinates from the workspace root and ignores nested `
 
 - `.norn/runes.yaml` - workspace configuration
 - `.norn/fates/*.yaml` - Norn-managed fate sources
-- `.norn/commands/*.yaml` - command registry used for permission generation
+- `.norn/tools/*.yaml` - tool permission registry used for fate permission generation
 - `.opencode/agents/*.md` - generated OpenCode-compatible fate agents
+
+## OpenCode Integration
+
+Norn generates OpenCode-compatible agent files from its fate definitions. The integration is currently one-way: Norn writes agent definitions, OpenCode executes them.
+
+### Generated Agents
+
+During `norn init --enable-opencode`, Norn creates `.opencode/agents/*.md` files containing:
+- Agent description and model configuration
+- Permission sets derived from the command registry
+- Fate-specific behavioral instructions
+
+### Configuration
+
+OpenCode settings are part of the layered `runes` config system:
+- `opencode.enabled` - whether to generate agents and allow assisted flows
+- `opencode.provider` - AI provider (default: github-copilot)
+- `opencode.model` - Model identifier (default: github-copilot/gpt-5.4-mini)
+- `opencode.agent` - Default agent role (default: build)
+- `opencode.response_language` - Preferred response language
+- `opencode.drafting_mode` - ask or auto
+
+### Manual Integration
+
+Users can also create agent files manually. The format is Markdown with YAML frontmatter specifying permissions, model, and body. See `docs/opencode.md` for the full specification.
+
+### Boundaries
+
+**Norn owns:** fate definitions, command registry, agent generation, config management.
+**OpenCode owns:** agent execution, model selection, prompt handling, response generation.
+**Shared:** agent format specification, permission semantics.
 
 ## Pending Config Scope
 

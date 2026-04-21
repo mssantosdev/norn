@@ -26,10 +26,10 @@ func TestInitNonInteractiveFolderMode(t *testing.T) {
 	if w.Runes.Name != "test-project" {
 		t.Fatalf("expected workspace name test-project, got %s", w.Runes.Name)
 	}
-	if w.Runes.Planning.Path != "loom" {
+	if w.Runes.Planning.Path != ".norn" {
 		t.Fatalf("expected planning path loom, got %s", w.Runes.Planning.Path)
 	}
-	for _, path := range []string{"loom/weaves", "loom/patterns", "loom/skills", ".norn/runes.yaml", ".norn/fates", ".norn/commands", ".opencode/agents"} {
+	for _, path := range []string{".norn/weaves", ".norn/patterns", ".norn/skills", ".norn/runes.yaml", ".norn/fates", ".norn/tools", ".opencode/agents"} {
 		if _, err := os.Stat(filepath.Join(root, path)); err != nil {
 			t.Fatalf("expected %s to exist: %v", path, err)
 		}

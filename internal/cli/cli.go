@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	cmdstore "github.com/mssantosdev/norn/internal/commands"
 	"github.com/mssantosdev/norn/internal/detect"
+	"github.com/mssantosdev/norn/internal/export"
 	"github.com/mssantosdev/norn/internal/fates"
 	"github.com/mssantosdev/norn/internal/loom"
 	"github.com/mssantosdev/norn/internal/norn"
@@ -18,17 +18,23 @@ import (
 	"github.com/mssantosdev/norn/internal/patterns"
 	"github.com/mssantosdev/norn/internal/skills"
 	"github.com/mssantosdev/norn/internal/threads"
+	toolstore "github.com/mssantosdev/norn/internal/tools"
 	"github.com/mssantosdev/norn/internal/ui/logger"
 	"github.com/mssantosdev/norn/internal/ui/styles"
 	"github.com/mssantosdev/norn/internal/weaves"
 )
 
-var errUsage = errors.New("usage: norn <init|status|detect|fates|patterns|skills|commands|weaves|threads|warps|runes|chat>")
+var errUsage = errors.New("usage: norn <init|status|detect|fates|patterns|skills|tools|weaves|threads|warps|runes|chat>")
 
 func Run(args []string) error {
 	if len(args) == 0 {
-		logger.Print(styles.AppHeader.Render("Norn") + " " + styles.Subtitle.Render("Weave-aware multi-agent harness"))
-		logger.Print("use `norn init` to bootstrap a project or workspace")
+		logger.Print(renderHelpText(rootHelp()))
+		return nil
+	}
+
+	// Handle top-level --help when no command is given or first arg is --help
+	if args[0] == "--help" || args[0] == "-h" {
+		showHelp(rootHelp(), args)
 		return nil
 	}
 
@@ -45,8 +51,8 @@ func Run(args []string) error {
 		return runDocCollection("patterns", args[1:])
 	case "skills":
 		return runDocCollection("skills", args[1:])
-	case "commands":
-		return runCommands(args[1:])
+	case "tools":
+		return runTools(args[1:])
 	case "weaves":
 		return runWeaves(args[1:])
 	case "threads":
@@ -55,7 +61,12 @@ func Run(args []string) error {
 		return runWarps(args[1:])
 	case "runes":
 		return runRunes(args[1:])
+	case "export":
+		return runExport(args[1:])
 	case "chat":
+		if showHelp(chatHelp(), args[1:]) {
+			return nil
+		}
 		return runChat(args[1:])
 	default:
 		return errUsage
@@ -63,6 +74,9 @@ func Run(args []string) error {
 }
 
 func runInit(args []string) error {
+	if showHelp(initHelp(), args) {
+		return nil
+	}
 	opts, err := parseInitArgs(args)
 	if err != nil {
 		return err
@@ -102,17 +116,13 @@ func runInit(args []string) error {
 		opts.OpenCodeAgent = "build"
 	}
 	if opts.LocalOverlayDir == "" {
-		opts.LocalOverlayDir = ".norn/loom"
+		opts.LocalOverlayDir = ".norn"
 	}
 	if opts.Mode == "" {
 		opts.Mode = norn.PlanningModeFolder
 	}
 	if opts.PlanningPath == "" {
-		if opts.Mode == norn.PlanningModeBranch {
-			opts.PlanningPath = ".loom"
-		} else {
-			opts.PlanningPath = "loom"
-		}
+		opts.PlanningPath = ".norn"
 	}
 
 	workspace := norn.Workspace{
@@ -146,7 +156,7 @@ func runInit(args []string) error {
 	if err := bootstrapCommands(workspace, detected); err != nil {
 		return err
 	}
-	if err := fates.ExportOpenCode(norn.FatesRoot(workspace), norn.CommandsRoot(workspace), norn.OpenCodeAgentsRoot(workspace)); err != nil {
+	if err := fates.ExportOpenCode(norn.FatesRoot(workspace), norn.ToolsRoot(workspace), norn.OpenCodeAgentsRoot(workspace)); err != nil {
 		return err
 	}
 	if workspace.Runes.OpenCode.Enabled && strings.TrimSpace(opts.OpenCodePrompt) != "" {
@@ -214,7 +224,7 @@ func runInitForm(opts *norn.InitOptions) error {
 	projectName := opts.Name
 	planningMode := string(opts.Mode)
 	branchChoice := "__new__"
-	branchName := "loom"
+	branchName := "norn-planning"
 	skeleton := opts.Skeleton
 	openCodeEnabled := opts.EnableOpenCode
 	openCodePrompt := opts.OpenCodePrompt
@@ -284,7 +294,7 @@ func runStatus() error {
 	logger.Print(styles.KV("tools", strings.Join(w.Runes.Tooling.Tools, ", ")))
 	logger.Print(styles.KV("frameworks", strings.Join(w.Runes.Tooling.Frameworks, ", ")))
 	logger.Print(styles.KV("fates", fmt.Sprintf("%d", norn.CountFiles(norn.FatesRoot(w), ".yaml"))))
-	logger.Print(styles.KV("commands", fmt.Sprintf("%d", norn.CountFiles(norn.CommandsRoot(w), ".yaml"))))
+	logger.Print(styles.KV("commands", fmt.Sprintf("%d", norn.CountFiles(norn.ToolsRoot(w), ".yaml"))))
 	logger.Print(styles.KV("weaves", fmt.Sprintf("%d", countWeaves(w))))
 	logger.Print(styles.KV("threads", fmt.Sprintf("%d", countThreads(w))))
 	logger.Print(styles.KV("patterns", fmt.Sprintf("%d", norn.CountFiles(filepath.Join(norn.SharedPlanningRoot(w), "patterns"), ".md"))))
@@ -308,6 +318,9 @@ func runDetect() error {
 }
 
 func runFates(args []string) error {
+	if showHelp(fatesHelp(), args) {
+		return nil
+	}
 	w, err := norn.Load(".")
 	if err != nil {
 		return err
@@ -328,17 +341,199 @@ func runFates(args []string) error {
 		if err != nil {
 			return err
 		}
-		rendered, err := fates.RenderOpenCode(item, norn.CommandsRoot(w))
+		rendered, err := fates.RenderOpenCode(item, norn.ToolsRoot(w))
 		if err != nil {
 			return err
 		}
 		logger.Print(rendered)
 		return nil
 	}
-	return fmt.Errorf("usage: norn fates <list|show <name>>")
+	if len(args) == 1 && args[0] == "add" {
+		return runFatesAddInteractive(w)
+	}
+	if len(args) >= 2 && args[0] == "add" {
+		if len(args) < 3 {
+			return fmt.Errorf("usage: norn fates add <name> <description>")
+		}
+		return runFatesAddNonInteractive(w, args[1], strings.Join(args[2:], " "))
+	}
+	if len(args) == 2 && args[0] == "edit" {
+		return runFatesEditInteractive(w, args[1])
+	}
+	if len(args) >= 3 && args[0] == "edit" {
+		sets := []string{}
+		for _, arg := range args[2:] {
+			if strings.HasPrefix(arg, "--set=") {
+				sets = append(sets, strings.TrimPrefix(arg, "--set="))
+			}
+		}
+		if len(sets) == 0 {
+			return fmt.Errorf("usage: norn fates edit <name> [--set field=value ...]")
+		}
+		return runFatesEditNonInteractive(w, args[1], sets)
+	}
+	if len(args) == 2 && args[0] == "remove" {
+		if err := fates.Delete(norn.FatesRoot(w), args[1]); err != nil {
+			return err
+		}
+		return fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w))
+	}
+	return fmt.Errorf("usage: norn fates <list|show|add|edit|remove>")
+}
+
+func runFatesAddInteractive(w norn.Workspace) error {
+	name := ""
+	description := ""
+	model := "github-copilot/gpt-5.4-mini"
+	temperature := "0.2"
+	body := ""
+	allowEdit := false
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title("Name").Value(&name),
+			huh.NewInput().Title("Description").Value(&description),
+			huh.NewInput().Title("Model").Value(&model),
+			huh.NewInput().Title("Temperature").Value(&temperature),
+			huh.NewText().Title("Body").Description("Agent instructions").Value(&body),
+			huh.NewConfirm().Title("Allow edit?").Value(&allowEdit),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return err
+	}
+	item := norn.FateSource{
+		Name:        name,
+		Description: description,
+		Model:       model,
+		Temperature: temperature,
+		Body:        body,
+		AllowEdit:   allowEdit,
+	}
+	preview := fmt.Sprintf("Name: %s\nDescription: %s\nModel: %s\nTemperature: %s\nAllowEdit: %t\n\n%s",
+		item.Name, item.Description, item.Model, item.Temperature, item.AllowEdit, item.Body)
+	confirmed := true
+	confirm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewNote().Title("Preview").Description(preview),
+			huh.NewConfirm().Title("Create fate?").Value(&confirmed),
+		),
+	)
+	if err := confirm.Run(); err != nil {
+		return err
+	}
+	if !confirmed {
+		return fmt.Errorf("add cancelled")
+	}
+	if err := fates.Save(norn.FatesRoot(w), item); err != nil {
+		return err
+	}
+	return fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w))
+}
+
+func runFatesAddNonInteractive(w norn.Workspace, name, description string) error {
+	item := norn.FateSource{
+		Name:        name,
+		Description: description,
+		Model:       "github-copilot/gpt-5.4-mini",
+		Temperature: "0.2",
+		Body:        fmt.Sprintf("You are the %s fate. ", name),
+	}
+	if err := fates.Save(norn.FatesRoot(w), item); err != nil {
+		return err
+	}
+	logger.Info("fate created", "name", name)
+	return fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w))
+}
+
+func runFatesEditInteractive(w norn.Workspace, name string) error {
+	item, err := fates.Load(norn.FatesRoot(w), name)
+	if err != nil {
+		return err
+	}
+	description := item.Description
+	model := item.Model
+	temperature := item.Temperature
+	body := item.Body
+	allowEdit := item.AllowEdit
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title("Description").Value(&description),
+			huh.NewInput().Title("Model").Value(&model),
+			huh.NewInput().Title("Temperature").Value(&temperature),
+			huh.NewText().Title("Body").Description("Agent instructions").Value(&body),
+			huh.NewConfirm().Title("Allow edit?").Value(&allowEdit),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return err
+	}
+	updated := norn.FateSource{
+		Name:        name,
+		Description: description,
+		Model:       model,
+		Temperature: temperature,
+		Body:        body,
+		AllowEdit:   allowEdit,
+	}
+	preview := fmt.Sprintf("Name: %s\nDescription: %s\nModel: %s\nTemperature: %s\nAllowEdit: %t\n\n%s",
+		updated.Name, updated.Description, updated.Model, updated.Temperature, updated.AllowEdit, updated.Body)
+	confirmed := true
+	confirm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewNote().Title("Preview").Description(preview),
+			huh.NewConfirm().Title("Save changes?").Value(&confirmed),
+		),
+	)
+	if err := confirm.Run(); err != nil {
+		return err
+	}
+	if !confirmed {
+		return fmt.Errorf("edit cancelled")
+	}
+	if err := fates.Save(norn.FatesRoot(w), updated); err != nil {
+		return err
+	}
+	return fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w))
+}
+
+func runFatesEditNonInteractive(w norn.Workspace, name string, sets []string) error {
+	item, err := fates.Load(norn.FatesRoot(w), name)
+	if err != nil {
+		return err
+	}
+	for _, set := range sets {
+		parts := strings.SplitN(set, "=", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid --set %q; expected field=value", set)
+		}
+		field := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		switch field {
+		case "description":
+			item.Description = value
+		case "model":
+			item.Model = value
+		case "temperature":
+			item.Temperature = value
+		case "body":
+			item.Body = value
+		case "allow_edit":
+			item.AllowEdit = value == "true"
+		default:
+			return fmt.Errorf("unknown field %q; expected description, model, temperature, body, or allow_edit", field)
+		}
+	}
+	if err := fates.Save(norn.FatesRoot(w), item); err != nil {
+		return err
+	}
+	logger.Info("fate updated", "name", name)
+	return fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w))
 }
 
 func runDocCollection(kind string, args []string) error {
+	if showHelp(docCollectionHelp(kind), args) {
+		return nil
+	}
 	w, err := norn.Load(".")
 	if err != nil {
 		return err
@@ -368,46 +563,271 @@ func runDocCollection(kind string, args []string) error {
 		logger.Print(doc.Body)
 		return nil
 	}
+	if len(args) == 2 && args[0] == "edit" {
+		return runDocEditInteractive(kind, root, args[1])
+	}
+	if len(args) >= 3 && args[0] == "edit" {
+		sets := []string{}
+		for _, arg := range args[2:] {
+			if strings.HasPrefix(arg, "--set=") {
+				sets = append(sets, strings.TrimPrefix(arg, "--set="))
+			}
+		}
+		if len(sets) == 0 {
+			return fmt.Errorf("usage: norn %s edit <id> [--set field=value ...]", kind)
+		}
+		return runDocEditNonInteractive(kind, root, args[1], sets)
+	}
 	if len(args) == 2 && args[0] == "remove" {
 		return deleteDoc(kind, root, args[1])
 	}
-	return fmt.Errorf("usage: norn %s <list|add|show|remove>", kind)
+	return fmt.Errorf("usage: norn %s <list|add|show|edit|remove>", kind)
 }
 
-func runCommands(args []string) error {
+func runDocEditInteractive(kind, root, id string) error {
+	doc, err := loadDoc(kind, root, id)
+	if err != nil {
+		return err
+	}
+	title := doc.Title
+	summary := doc.Summary
+	body := doc.Body
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title("Title").Value(&title),
+			huh.NewInput().Title("Summary").Value(&summary),
+			huh.NewText().Title("Body").Value(&body),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return err
+	}
+	updated := norn.Document{ID: id, Title: title, Summary: summary, Body: body}
+	preview := fmt.Sprintf("ID: %s\nTitle: %s\nSummary: %s\n\n%s", updated.ID, updated.Title, updated.Summary, updated.Body)
+	confirmed := true
+	confirm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewNote().Title("Preview").Description(preview),
+			huh.NewConfirm().Title("Save changes?").Value(&confirmed),
+		),
+	)
+	if err := confirm.Run(); err != nil {
+		return err
+	}
+	if !confirmed {
+		return fmt.Errorf("edit cancelled")
+	}
+	return saveDoc(kind, root, updated)
+}
+
+func runDocEditNonInteractive(kind, root, id string, sets []string) error {
+	doc, err := loadDoc(kind, root, id)
+	if err != nil {
+		return err
+	}
+	for _, set := range sets {
+		parts := strings.SplitN(set, "=", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid --set %q; expected field=value", set)
+		}
+		field := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		switch field {
+		case "title":
+			doc.Title = value
+		case "summary":
+			doc.Summary = value
+		case "body":
+			doc.Body = value
+		default:
+			return fmt.Errorf("unknown field %q; expected title, summary, or body", field)
+		}
+	}
+	if err := saveDoc(kind, root, doc); err != nil {
+		return err
+	}
+	logger.Info(kind+" updated", "id", id)
+	return nil
+}
+
+func runTools(args []string) error {
+	if showHelp(toolsHelp(), args) {
+		return nil
+	}
 	w, err := norn.Load(".")
 	if err != nil {
 		return err
 	}
-	root := norn.CommandsRoot(w)
+	root := norn.ToolsRoot(w)
 	if len(args) == 0 || args[0] == "list" {
-		items, err := cmdstore.List(root)
+		items, err := toolstore.List(root)
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render("Commands"))
+		logger.Print(styles.Title.Render("Tools"))
 		for _, item := range items {
 			logger.Print(styles.KV(item.ID, fmt.Sprintf("%s [%s]", item.Command, strings.Join(item.Roles, ", "))))
 		}
 		return nil
 	}
 	if len(args) >= 4 && args[0] == "add" {
-		item := norn.ManagedCommand{ID: slug(args[1]), Title: args[1], Category: args[2], Command: strings.Join(args[3:], " "), Roles: []string{"weaver"}}
-		if err := cmdstore.Save(root, item); err != nil {
+		item := norn.ManagedTool{ID: slug(args[1]), Title: args[1], Category: args[2], Command: strings.Join(args[3:], " "), Roles: []string{"weaver"}}
+		if err := toolstore.Save(root, item); err != nil {
 			return err
 		}
 		return fates.ExportOpenCode(norn.FatesRoot(w), root, norn.OpenCodeAgentsRoot(w))
+	}
+	if len(args) == 2 && args[0] == "show" {
+		item, err := toolstore.Load(root, args[1])
+		if err != nil {
+			return err
+		}
+		logger.Print(styles.Title.Render(item.Title))
+		logger.Print(styles.KV("ID", item.ID))
+		logger.Print(styles.KV("Category", item.Category))
+		logger.Print(styles.KV("Command", item.Command))
+		logger.Print(styles.KV("Pattern", item.Pattern))
+		logger.Print(styles.KV("Risk", item.Risk))
+		logger.Print(styles.KV("Roles", strings.Join(item.Roles, ", ")))
+		if item.Description != "" {
+			logger.Print(styles.KV("Description", item.Description))
+		}
+		return nil
+	}
+	if len(args) == 2 && args[0] == "edit" {
+		return runToolsEditInteractive(w, root, args[1])
+	}
+	if len(args) >= 3 && args[0] == "edit" {
+		sets := []string{}
+		for _, arg := range args[2:] {
+			if strings.HasPrefix(arg, "--set=") {
+				sets = append(sets, strings.TrimPrefix(arg, "--set="))
+			}
+		}
+		if len(sets) == 0 {
+			return fmt.Errorf("usage: norn tools edit <id> [--set field=value ...]")
+		}
+		return runToolsEditNonInteractive(w, root, args[1], sets)
 	}
 	if len(args) == 2 && args[0] == "remove" {
-		if err := cmdstore.Delete(root, args[1]); err != nil {
+		if err := toolstore.Delete(root, args[1]); err != nil {
 			return err
 		}
 		return fates.ExportOpenCode(norn.FatesRoot(w), root, norn.OpenCodeAgentsRoot(w))
 	}
-	return fmt.Errorf("usage: norn commands <list|add|remove>")
+	return fmt.Errorf("usage: norn tools <list|add|show|edit|remove>")
+}
+
+func runToolsEditInteractive(w norn.Workspace, root, id string) error {
+	item, err := toolstore.Load(root, id)
+	if err != nil {
+		return err
+	}
+	title := item.Title
+	description := item.Description
+	category := item.Category
+	command := item.Command
+	pattern := item.Pattern
+	risk := item.Risk
+	rolesStr := strings.Join(item.Roles, ", ")
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().Title("Title").Value(&title),
+			huh.NewInput().Title("Description").Value(&description),
+			huh.NewInput().Title("Category").Value(&category),
+			huh.NewInput().Title("Command").Value(&command),
+			huh.NewInput().Title("Pattern").Description("Leave empty to derive from command").Value(&pattern),
+			huh.NewSelect[string]().Title("Risk").Options(
+				huh.NewOption("Low", "low"),
+				huh.NewOption("Medium", "medium"),
+				huh.NewOption("High", "high"),
+			).Value(&risk),
+			huh.NewInput().Title("Roles").Description("Comma-separated list of roles").Value(&rolesStr),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return err
+	}
+	roles := splitCSV(rolesStr)
+	if pattern == "" {
+		pattern = command + "*"
+	}
+	updated := norn.ManagedTool{
+		ID:          id,
+		Title:       title,
+		Description: description,
+		Category:    category,
+		Command:     command,
+		Pattern:     pattern,
+		Risk:        risk,
+		Roles:       roles,
+	}
+	preview := fmt.Sprintf("ID: %s\nTitle: %s\nCategory: %s\nCommand: %s\nPattern: %s\nRisk: %s\nRoles: %s",
+		updated.ID, updated.Title, updated.Category, updated.Command, updated.Pattern, updated.Risk, strings.Join(updated.Roles, ", "))
+	confirmed := true
+	confirm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewNote().Title("Preview").Description(preview),
+			huh.NewConfirm().Title("Save changes?").Value(&confirmed),
+		),
+	)
+	if err := confirm.Run(); err != nil {
+		return err
+	}
+	if !confirmed {
+		return fmt.Errorf("edit cancelled")
+	}
+	if err := toolstore.Save(root, updated); err != nil {
+		return err
+	}
+	return fates.ExportOpenCode(norn.FatesRoot(w), root, norn.OpenCodeAgentsRoot(w))
+}
+
+func runToolsEditNonInteractive(w norn.Workspace, root, id string, sets []string) error {
+	item, err := toolstore.Load(root, id)
+	if err != nil {
+		return err
+	}
+	for _, set := range sets {
+		parts := strings.SplitN(set, "=", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid --set %q; expected field=value", set)
+		}
+		field := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		switch field {
+		case "title":
+			item.Title = value
+		case "description":
+			item.Description = value
+		case "category":
+			item.Category = value
+		case "command":
+			item.Command = value
+		case "pattern":
+			item.Pattern = value
+		case "risk":
+			item.Risk = value
+		case "roles":
+			item.Roles = splitCSV(value)
+		default:
+			return fmt.Errorf("unknown field %q; expected title, description, category, command, pattern, risk, or roles", field)
+		}
+	}
+	if item.Pattern == "" {
+		item.Pattern = item.Command + "*"
+	}
+	if err := toolstore.Save(root, item); err != nil {
+		return err
+	}
+	logger.Info("command updated", "id", id)
+	return fates.ExportOpenCode(norn.FatesRoot(w), root, norn.OpenCodeAgentsRoot(w))
 }
 
 func runWeaves(args []string) error {
+	if showHelp(weavesHelp(), args) {
+		return nil
+	}
 	w, err := norn.Load(".")
 	if err != nil {
 		return err
@@ -460,6 +880,9 @@ func runWeaves(args []string) error {
 }
 
 func runThreads(args []string) error {
+	if showHelp(threadsHelp(), args) {
+		return nil
+	}
 	w, err := norn.Load(".")
 	if err != nil {
 		return err
@@ -515,22 +938,283 @@ func runThreads(args []string) error {
 	return fmt.Errorf("usage: norn threads <list <weave-id>|add <weave-id> <title> <summary>|show <weave-id> <thread-id>|remove <weave-id> <thread-id>>")
 }
 
+func runExport(args []string) error {
+	if showHelp(exportHelp(), args) {
+		return nil
+	}
+	if len(args) == 0 {
+		return fmt.Errorf("usage: norn export --opencode [flags]")
+	}
+	if args[0] != "--opencode" {
+		return fmt.Errorf("usage: norn export --opencode [flags]")
+	}
+
+	w, err := norn.Load(".")
+	if err != nil {
+		return err
+	}
+
+	opts := export.Options{Target: "opencode"}
+	for _, arg := range args[1:] {
+		switch {
+		case arg == "--fates":
+			opts.Fates = true
+		case arg == "--skills":
+			opts.Skills = true
+		case arg == "--dry-run":
+			opts.DryRun = true
+		case strings.HasPrefix(arg, "--fate="):
+			opts.FateName = strings.TrimPrefix(arg, "--fate=")
+		case strings.HasPrefix(arg, "--skill="):
+			opts.SkillName = strings.TrimPrefix(arg, "--skill=")
+		}
+	}
+
+	// If no specific flags, export all
+	if !opts.Fates && !opts.Skills && opts.FateName == "" && opts.SkillName == "" {
+		opts.Fates = true
+		opts.Skills = true
+	}
+
+	return export.Run(w, opts)
+}
+
 func runChat(args []string) error {
-	if len(args) == 1 && args[0] == "validate" {
+	if showHelp(chatHelp(), args) {
+		return nil
+	}
+	if len(args) == 0 {
+		return fmt.Errorf("usage: norn chat <validate|status|export|assist|preview>")
+	}
+	switch args[0] {
+	case "validate":
 		if err := opencode.Validate(); err != nil {
 			return err
 		}
 		logger.Info("opencode available")
 		return nil
+	case "status":
+		return runChatStatus()
+	case "export":
+		return runChatExport(args[1:])
+	case "assist":
+		return runChatAssist(args[1:])
+	case "preview":
+		return runChatPreview(args[1:])
+	default:
+		return fmt.Errorf("usage: norn chat <validate|status|export|assist|preview>")
 	}
-	return fmt.Errorf("usage: norn chat validate")
+}
+
+func runChatStatus() error {
+	w, err := norn.Load(".")
+	if err != nil {
+		return err
+	}
+	status := opencode.GetStatus(w)
+	logger.Print(styles.Title.Render("OpenCode Status"))
+	logger.Print(styles.KV("Available", fmt.Sprintf("%t", status.Available)))
+	logger.Print(styles.KV("Enabled", fmt.Sprintf("%t", status.Enabled)))
+	if status.Enabled {
+		logger.Print(styles.KV("Provider", status.Provider))
+		logger.Print(styles.KV("Model", status.Model))
+		logger.Print(styles.KV("Agent", status.Agent))
+		logger.Print(styles.KV("Response language", status.ResponseLang))
+		logger.Print(styles.KV("Drafting mode", status.DraftingMode))
+	}
+	logger.Print(styles.KV("Agents path", status.AgentsPath))
+	logger.Print(styles.KV("Agents generated", fmt.Sprintf("%d", status.AgentsCount)))
+	if len(status.AgentNames) > 0 {
+		logger.Print(styles.KV("Agent names", strings.Join(status.AgentNames, ", ")))
+	}
+	return nil
+}
+
+func runChatExport(args []string) error {
+	w, err := norn.Load(".")
+	if err != nil {
+		return err
+	}
+	if !w.Runes.OpenCode.Enabled {
+		return fmt.Errorf("opencode is not enabled; run 'norn runes edit --set opencode.enabled=true' to enable")
+	}
+	// Export agents
+	if err := fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w)); err != nil {
+		return err
+	}
+	// Export config
+	targetDir := "."
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--output=") {
+			targetDir = strings.TrimPrefix(arg, "--output=")
+		}
+	}
+	if err := opencode.ExportConfig(w, targetDir); err != nil {
+		return err
+	}
+	logger.Info("opencode exported", "agents", norn.OpenCodeAgentsRoot(w), "config", filepath.Join(targetDir, "norn-opencode.json"))
+	return nil
+}
+
+func runChatAssist(args []string) error {
+	w, err := norn.Load(".")
+	if err != nil {
+		return err
+	}
+	if !w.Runes.OpenCode.Enabled {
+		return fmt.Errorf("opencode is not enabled; run 'norn runes edit --set opencode.enabled=true' to enable")
+	}
+	prompt := ""
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--prompt=") {
+			prompt = strings.TrimPrefix(arg, "--prompt=")
+		}
+	}
+	if prompt == "" {
+		// Interactive mode
+		p := ""
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewText().Title("What would you like help with?").Description("Describe what you want the AI to generate or help with.").Value(&p),
+			),
+		)
+		if err := form.Run(); err != nil {
+			return err
+		}
+		prompt = p
+	}
+	if strings.TrimSpace(prompt) == "" {
+		return fmt.Errorf("prompt is required")
+	}
+	context := fmt.Sprintf("Project: %s. Stack: %s.", w.Runes.Name, strings.Join(w.Runes.Tooling.Languages, ", "))
+	logger.Info("requesting assistance", "prompt", prompt)
+	assist, err := opencode.Assist(w.Runes.OpenCode, context, prompt)
+	if err != nil {
+		return err
+	}
+	// Preview what was generated
+	logger.Print(styles.Title.Render("Assisted Results"))
+	if len(assist.Weaves) > 0 {
+		logger.Print(styles.Label.Render("Weaves:"))
+		for _, item := range assist.Weaves {
+			logger.Print(fmt.Sprintf("  - %s: %s", item.Title, item.Summary))
+		}
+	}
+	if len(assist.Patterns) > 0 {
+		logger.Print(styles.Label.Render("Patterns:"))
+		for _, item := range assist.Patterns {
+			logger.Print(fmt.Sprintf("  - %s: %s", item.Title, item.Summary))
+		}
+	}
+	if len(assist.Skills) > 0 {
+		logger.Print(styles.Label.Render("Skills:"))
+		for _, item := range assist.Skills {
+			logger.Print(fmt.Sprintf("  - %s: %s", item.Title, item.Summary))
+		}
+	}
+	// Ask for approval
+	confirmed := false
+	confirm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().Title("Save these artifacts?").Value(&confirmed),
+		),
+	)
+	if err := confirm.Run(); err != nil {
+		return err
+	}
+	if !confirmed {
+		logger.Info("assistance discarded")
+		return nil
+	}
+	// Save artifacts
+	for _, item := range assist.Weaves {
+		item.ID = slug(item.Title)
+		item.Body = weaves.DefaultBody(item.Title, item.Summary)
+		if err := weaves.SaveToSurface(norn.SharedPlanningRoot(w), item); err != nil {
+			logger.Warn("failed to save weave", "title", item.Title, "error", err)
+		} else {
+			logger.Info("weave saved", "id", item.ID)
+		}
+	}
+	for _, item := range assist.Patterns {
+		item.ID = slug(item.Title)
+		if err := saveDoc("patterns", filepath.Join(norn.SharedPlanningRoot(w), "patterns"), item); err != nil {
+			logger.Warn("failed to save pattern", "title", item.Title, "error", err)
+		} else {
+			logger.Info("pattern saved", "id", item.ID)
+		}
+	}
+	for _, item := range assist.Skills {
+		item.ID = slug(item.Title)
+		if err := saveDoc("skills", filepath.Join(norn.SharedPlanningRoot(w), "skills"), item); err != nil {
+			logger.Warn("failed to save skill", "title", item.Title, "error", err)
+		} else {
+			logger.Info("skill saved", "id", item.ID)
+		}
+	}
+	return nil
+}
+
+func runChatPreview(args []string) error {
+	w, err := norn.Load(".")
+	if err != nil {
+		return err
+	}
+	if !w.Runes.OpenCode.Enabled {
+		return fmt.Errorf("opencode is not enabled; run 'norn runes edit --set opencode.enabled=true' to enable")
+	}
+	prompt := ""
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--prompt=") {
+			prompt = strings.TrimPrefix(arg, "--prompt=")
+		}
+	}
+	if prompt == "" {
+		return fmt.Errorf("usage: norn chat preview --prompt=<prompt>")
+	}
+	context := fmt.Sprintf("Project: %s. Stack: %s.", w.Runes.Name, strings.Join(w.Runes.Tooling.Languages, ", "))
+	logger.Info("generating preview", "prompt", prompt)
+	assist, err := opencode.Assist(w.Runes.OpenCode, context, prompt)
+	if err != nil {
+		return err
+	}
+	logger.Print(styles.Title.Render("Preview (not saved)"))
+	if len(assist.Weaves) > 0 {
+		logger.Print(styles.Label.Render("Weaves:"))
+		for _, item := range assist.Weaves {
+			logger.Print(fmt.Sprintf("  - %s: %s", item.Title, item.Summary))
+			if item.Body != "" {
+				logger.Print(fmt.Sprintf("    Body: %s", strings.ReplaceAll(item.Body, "\n", "\n    ")))
+			}
+		}
+	}
+	if len(assist.Patterns) > 0 {
+		logger.Print(styles.Label.Render("Patterns:"))
+		for _, item := range assist.Patterns {
+			logger.Print(fmt.Sprintf("  - %s: %s", item.Title, item.Summary))
+			if item.Body != "" {
+				logger.Print(fmt.Sprintf("    Body: %s", strings.ReplaceAll(item.Body, "\n", "\n    ")))
+			}
+		}
+	}
+	if len(assist.Skills) > 0 {
+		logger.Print(styles.Label.Render("Skills:"))
+		for _, item := range assist.Skills {
+			logger.Print(fmt.Sprintf("  - %s: %s", item.Title, item.Summary))
+			if item.Body != "" {
+				logger.Print(fmt.Sprintf("    Body: %s", strings.ReplaceAll(item.Body, "\n", "\n    ")))
+			}
+		}
+	}
+	logger.Print(styles.Dimmed.Render("Use 'norn chat assist --prompt=...' to save these artifacts."))
+	return nil
 }
 
 func ensureWorkspacePaths(workspace norn.Workspace) error {
 	paths := []string{
 		norn.SharedPlanningRoot(workspace),
 		norn.OverlayPlanningRoot(workspace),
-		norn.CommandsRoot(workspace),
+		norn.ToolsRoot(workspace),
 		norn.SkillsRoot(workspace),
 		norn.FatesRoot(workspace),
 		norn.SpindleRoot(workspace),
@@ -549,8 +1233,8 @@ func ensureWorkspacePaths(workspace norn.Workspace) error {
 }
 
 func bootstrapCommands(workspace norn.Workspace, detected norn.Detection) error {
-	root := norn.CommandsRoot(workspace)
-	defaults := []norn.ManagedCommand{
+	root := norn.ToolsRoot(workspace)
+	defaults := []norn.ManagedTool{
 		{ID: "git-status", Title: "Git status", Category: "inspect", Command: "git status", Pattern: "git status*", Risk: "low", Roles: []string{"keeper", "weaver", "judge", "fates"}},
 		{ID: "git-diff", Title: "Git diff", Category: "inspect", Command: "git diff", Pattern: "git diff*", Risk: "low", Roles: []string{"keeper", "weaver", "judge", "fates"}},
 		{ID: "git-log", Title: "Git log", Category: "inspect", Command: "git log", Pattern: "git log*", Risk: "low", Roles: []string{"keeper", "weaver", "judge", "fates"}},
@@ -567,42 +1251,42 @@ func bootstrapCommands(workspace norn.Workspace, detected norn.Detection) error 
 			continue
 		}
 		seen[item.ID] = true
-		if err := cmdstore.Save(root, item); err != nil {
+		if err := toolstore.Save(root, item); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func languageDefaults(language string) []norn.ManagedCommand {
+func languageDefaults(language string) []norn.ManagedTool {
 	switch language {
 	case "go":
-		return []norn.ManagedCommand{{ID: "go-build", Title: "Go build", Category: "build", Command: "go build ./...", Pattern: "go build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "go-test", Title: "Go test", Category: "test", Command: "go test ./...", Pattern: "go test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "go-run", Title: "Go run", Category: "run", Command: "go run .", Pattern: "go run*", Risk: "low", Roles: []string{"weaver", "fates"}}}
+		return []norn.ManagedTool{{ID: "go-build", Title: "Go build", Category: "build", Command: "go build ./...", Pattern: "go build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "go-test", Title: "Go test", Category: "test", Command: "go test ./...", Pattern: "go test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "go-run", Title: "Go run", Category: "run", Command: "go run .", Pattern: "go run*", Risk: "low", Roles: []string{"weaver", "fates"}}}
 	case "node":
-		return []norn.ManagedCommand{{ID: "npm-install", Title: "npm install", Category: "setup", Command: "npm install", Pattern: "npm install*", Risk: "medium", Roles: []string{"weaver", "fates"}}, {ID: "npm-test", Title: "npm test", Category: "test", Command: "npm test", Pattern: "npm test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "npm-build", Title: "npm build", Category: "build", Command: "npm run build", Pattern: "npm run build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
+		return []norn.ManagedTool{{ID: "npm-install", Title: "npm install", Category: "setup", Command: "npm install", Pattern: "npm install*", Risk: "medium", Roles: []string{"weaver", "fates"}}, {ID: "npm-test", Title: "npm test", Category: "test", Command: "npm test", Pattern: "npm test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "npm-build", Title: "npm build", Category: "build", Command: "npm run build", Pattern: "npm run build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
 	case "bun":
-		return []norn.ManagedCommand{{ID: "bun-install", Title: "bun install", Category: "setup", Command: "bun install", Pattern: "bun install*", Risk: "medium", Roles: []string{"weaver", "fates"}}, {ID: "bun-test", Title: "bun test", Category: "test", Command: "bun test", Pattern: "bun test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
+		return []norn.ManagedTool{{ID: "bun-install", Title: "bun install", Category: "setup", Command: "bun install", Pattern: "bun install*", Risk: "medium", Roles: []string{"weaver", "fates"}}, {ID: "bun-test", Title: "bun test", Category: "test", Command: "bun test", Pattern: "bun test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
 	case "java":
-		return []norn.ManagedCommand{{ID: "maven-package", Title: "mvn package", Category: "build", Command: "mvn package", Pattern: "mvn package*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "maven-test", Title: "mvn test", Category: "test", Command: "mvn test", Pattern: "mvn test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
+		return []norn.ManagedTool{{ID: "maven-package", Title: "mvn package", Category: "build", Command: "mvn package", Pattern: "mvn package*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "maven-test", Title: "mvn test", Category: "test", Command: "mvn test", Pattern: "mvn test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
 	case "kotlin":
-		return []norn.ManagedCommand{{ID: "gradle-build", Title: "gradle build", Category: "build", Command: "./gradlew build", Pattern: "./gradlew build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
+		return []norn.ManagedTool{{ID: "gradle-build", Title: "gradle build", Category: "build", Command: "./gradlew build", Pattern: "./gradlew build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
 	case "rust":
-		return []norn.ManagedCommand{{ID: "cargo-build", Title: "cargo build", Category: "build", Command: "cargo build", Pattern: "cargo build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "cargo-test", Title: "cargo test", Category: "test", Command: "cargo test", Pattern: "cargo test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
+		return []norn.ManagedTool{{ID: "cargo-build", Title: "cargo build", Category: "build", Command: "cargo build", Pattern: "cargo build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "cargo-test", Title: "cargo test", Category: "test", Command: "cargo test", Pattern: "cargo test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
 	case ".net":
-		return []norn.ManagedCommand{{ID: "dotnet-build", Title: "dotnet build", Category: "build", Command: "dotnet build", Pattern: "dotnet build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "dotnet-test", Title: "dotnet test", Category: "test", Command: "dotnet test", Pattern: "dotnet test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
+		return []norn.ManagedTool{{ID: "dotnet-build", Title: "dotnet build", Category: "build", Command: "dotnet build", Pattern: "dotnet build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}, {ID: "dotnet-test", Title: "dotnet test", Category: "test", Command: "dotnet test", Pattern: "dotnet test*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
 	default:
 		return nil
 	}
 }
 
-func toolDefaults(tool string) []norn.ManagedCommand {
+func toolDefaults(tool string) []norn.ManagedTool {
 	switch tool {
 	case "make":
-		return []norn.ManagedCommand{{ID: "make-build", Title: "make build", Category: "build", Command: "make build", Pattern: "make build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
+		return []norn.ManagedTool{{ID: "make-build", Title: "make build", Category: "build", Command: "make build", Pattern: "make build*", Risk: "low", Roles: []string{"weaver", "judge", "fates"}}}
 	case "docker":
-		return []norn.ManagedCommand{{ID: "docker-build", Title: "docker build", Category: "build", Command: "docker build .", Pattern: "docker build*", Risk: "medium", Roles: []string{"weaver", "fates"}}}
+		return []norn.ManagedTool{{ID: "docker-build", Title: "docker build", Category: "build", Command: "docker build .", Pattern: "docker build*", Risk: "medium", Roles: []string{"weaver", "fates"}}}
 	case "mise":
-		return []norn.ManagedCommand{{ID: "mise-trust", Title: "mise trust", Category: "setup", Command: "mise trust", Pattern: "mise trust*", Risk: "medium", Roles: []string{"weaver", "fates"}}}
+		return []norn.ManagedTool{{ID: "mise-trust", Title: "mise trust", Category: "setup", Command: "mise trust", Pattern: "mise trust*", Risk: "medium", Roles: []string{"weaver", "fates"}}}
 	default:
 		return nil
 	}
@@ -817,8 +1501,8 @@ func promptWeaveCreation(w norn.Workspace) (string, norn.Document, error) {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().Title("Planning surface").Options(
-				huh.NewOption("Shared (loom/)", "shared"),
-				huh.NewOption("Local (.norn/loom/)", "local"),
+				huh.NewOption("Shared (.norn/)", "shared"),
+				huh.NewOption("Local (.norn/)", "local"),
 				huh.NewOption("Both", "both"),
 			).Value(&surface),
 			huh.NewInput().Title("Title").Value(&title),
@@ -873,8 +1557,8 @@ func promptThreadCreation(w norn.Workspace) (string, string, norn.Document, erro
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().Title("Planning surface").Options(
-				huh.NewOption("Shared (loom/)", "shared"),
-				huh.NewOption("Local (.norn/loom/)", "local"),
+				huh.NewOption("Shared (.norn/)", "shared"),
+				huh.NewOption("Local (.norn/)", "local"),
 				huh.NewOption("Both", "both"),
 			).Value(&surface),
 			huh.NewSelect[string]().Title("Parent weave").Options(options...).Value(&selectedWeave),
@@ -937,6 +1621,303 @@ func buildArtifactBody(goal string, sections ...string) string {
 		}
 		b.WriteString("\n")
 	}
+	b.WriteString("## Documentation\n\n")
+	b.WriteString("- [ ] CLI --help text updated for any new commands or flags\n")
+	b.WriteString("- [ ] Project docs (docs/) updated with user-facing guides\n")
+	b.WriteString("- [ ] Specifications documented for AI agent consumption\n")
+	b.WriteString("- [ ] Integration boundaries documented (what Norn owns vs what OpenCode owns)\n")
+	b.WriteString("\n")
+	b.WriteString("## Guides\n\n")
+	b.WriteString("- Quick start path for users\n")
+	b.WriteString("- Configuration reference (if applicable)\n")
+	b.WriteString("\n")
+	b.WriteString("## Specifications\n\n")
+	b.WriteString("- Data formats and schemas\n")
+	b.WriteString("- API/contracts for AI agent interaction\n")
+	b.WriteString("\n")
 	b.WriteString("## Notes\n\n- replace this template content with project-specific details\n")
 	return strings.TrimSpace(b.String())
+}
+
+func fatesHelp() HelpTopic {
+	return HelpTopic{
+		Name:        "norn fates",
+		Description: "Manage agent fates",
+		Usage:       "norn fates <command>",
+		Commands: []CommandHelp{
+			{
+				Name:        "list",
+				Description: "List all fates",
+				Usage:       "norn fates list",
+			},
+			{
+				Name:        "show",
+				Description: "Show a fate and its OpenCode agent definition",
+				Usage:       "norn fates show <name>",
+			},
+			{
+				Name:        "add",
+				Description: "Add a new fate",
+				Usage:       "norn fates add <name> <description>",
+				Examples: []string{
+					"norn fates add guardian \"Guards project boundaries\"",
+				},
+			},
+			{
+				Name:        "edit",
+				Description: "Edit a fate interactively or non-interactively",
+				Usage:       "norn fates edit <name> [--set field=value ...]",
+				Flags: []FlagHelp{
+					{Name: "--set field=value", Description: "Set a field value (description, model, temperature, body, allow_edit)"},
+				},
+				Examples: []string{
+					"norn fates edit keeper --set description=\"New description\"",
+					"norn fates edit keeper --set model=\"gpt-4\" --set allow_edit=true",
+				},
+			},
+			{
+				Name:        "remove",
+				Description: "Remove a fate",
+				Usage:       "norn fates remove <name>",
+			},
+		},
+	}
+}
+
+func docCollectionHelp(kind string) HelpTopic {
+	singular := kind
+	if strings.HasSuffix(kind, "s") {
+		singular = kind[:len(kind)-1]
+	}
+	return HelpTopic{
+		Name:        fmt.Sprintf("norn %s", kind),
+		Description: fmt.Sprintf("Manage %s documents", kind),
+		Usage:       fmt.Sprintf("norn %s <command>", kind),
+		Commands: []CommandHelp{
+			{
+				Name:        "list",
+				Description: fmt.Sprintf("List all %s", kind),
+				Usage:       fmt.Sprintf("norn %s list", kind),
+			},
+			{
+				Name:        "add",
+				Description: fmt.Sprintf("Add a new %s", singular),
+				Usage:       fmt.Sprintf("norn %s add <title> <summary>", kind),
+			},
+			{
+				Name:        "show",
+				Description: fmt.Sprintf("Show a %s", singular),
+				Usage:       fmt.Sprintf("norn %s show <id>", kind),
+			},
+			{
+				Name:        "edit",
+				Description: fmt.Sprintf("Edit a %s interactively or non-interactively", singular),
+				Usage:       fmt.Sprintf("norn %s edit <id> [--set field=value ...]", kind),
+				Flags: []FlagHelp{
+					{Name: "--set field=value", Description: "Set a field value (title, summary, body)"},
+				},
+				Examples: []string{
+					fmt.Sprintf("norn %s edit my-doc --set title=\"New Title\"", kind),
+					fmt.Sprintf("norn %s edit my-doc --set summary=\"Updated summary\"", kind),
+				},
+			},
+			{
+				Name:        "remove",
+				Description: fmt.Sprintf("Remove a %s", singular),
+				Usage:       fmt.Sprintf("norn %s remove <id>", kind),
+			},
+		},
+	}
+}
+
+func toolsHelp() HelpTopic {
+	return HelpTopic{
+		Name:        "norn tools",
+		Description: "Manage tool permission definitions",
+		Usage:       "norn tools <command>",
+		Commands: []CommandHelp{
+			{
+				Name:        "list",
+				Description: "List all tool permission definitions",
+				Usage:       "norn tools list",
+			},
+			{
+				Name:        "add",
+				Description: "Add a new tool permission definition",
+				Usage:       "norn tools add <title> <category> <command>",
+				Examples: []string{
+					"norn tools add lint lint \"npm run lint\"",
+				},
+			},
+			{
+				Name:        "show",
+				Description: "Show tool details",
+				Usage:       "norn tools show <id>",
+			},
+			{
+				Name:        "edit",
+				Description: "Edit a tool interactively or non-interactively",
+				Usage:       "norn tools edit <id> [--set field=value ...]",
+				Flags: []FlagHelp{
+					{Name: "--set field=value", Description: "Set a field value (title, description, category, command, pattern, risk, roles)"},
+				},
+				Examples: []string{
+					"norn tools edit lint --set command=\"npm run lint\"",
+					"norn tools edit lint --set risk=low --set roles=weaver,judge",
+				},
+			},
+			{
+				Name:        "remove",
+				Description: "Remove a tool",
+				Usage:       "norn tools remove <id>",
+			},
+		},
+	}
+}
+
+func exportHelp() HelpTopic {
+	return HelpTopic{
+		Name:        "norn export",
+		Description: "Export Norn artifacts to agent tools",
+		Usage:       "norn export --opencode [flags]",
+		Commands: []CommandHelp{
+			{
+				Name:        "--opencode",
+				Description: "Export to OpenCode format",
+				Usage:       "norn export --opencode",
+			},
+			{
+				Name:        "--fates",
+				Description: "Export fates only",
+				Usage:       "norn export --opencode --fates",
+			},
+			{
+				Name:        "--skills",
+				Description: "Export skills only",
+				Usage:       "norn export --opencode --skills",
+			},
+			{
+				Name:        "--fate=<name>",
+				Description: "Export specific fate",
+				Usage:       "norn export --opencode --fate=keeper",
+			},
+			{
+				Name:        "--skill=<name>",
+				Description: "Export specific skill",
+				Usage:       "norn export --opencode --skill=go-api",
+			},
+			{
+				Name:        "--dry-run",
+				Description: "Preview without writing",
+				Usage:       "norn export --opencode --dry-run",
+			},
+		},
+	}
+}
+
+func weavesHelp() HelpTopic {
+	return HelpTopic{
+		Name:        "norn weaves",
+		Description: "Manage weave planning artifacts",
+		Usage:       "norn weaves <command> [flags]",
+		Commands: []CommandHelp{
+			{
+				Name:        "list",
+				Description: "List all weaves",
+				Usage:       "norn weaves list",
+			},
+			{
+				Name:        "add",
+				Description: "Add a new weave",
+				Usage:       "norn weaves add [--surface=shared|local|both] <title> <summary>",
+				Flags: []FlagHelp{
+					{Name: "--surface=shared|local|both", Description: "Planning surface for writes"},
+				},
+				Examples: []string{
+					"norn weaves add \"API Contract\" \"Document API expectations\"",
+				},
+			},
+			{
+				Name:        "show",
+				Description: "Show a weave",
+				Usage:       "norn weaves show <id>",
+			},
+			{
+				Name:        "remove",
+				Description: "Remove a weave",
+				Usage:       "norn weaves remove <id>",
+			},
+		},
+	}
+}
+
+func threadsHelp() HelpTopic {
+	return HelpTopic{
+		Name:        "norn threads",
+		Description: "Manage thread planning artifacts",
+		Usage:       "norn threads <command> [flags]",
+		Commands: []CommandHelp{
+			{
+				Name:        "list",
+				Description: "List threads for a weave",
+				Usage:       "norn threads list <weave-id>",
+			},
+			{
+				Name:        "add",
+				Description: "Add a new thread",
+				Usage:       "norn threads add [--surface=shared|local|both] <weave-id> <title> <summary>",
+				Flags: []FlagHelp{
+					{Name: "--surface=shared|local|both", Description: "Planning surface for writes"},
+				},
+				Examples: []string{
+					"norn threads add my-weave \"Add CLI\" \"Implement the command\"",
+				},
+			},
+			{
+				Name:        "show",
+				Description: "Show a thread",
+				Usage:       "norn threads show <weave-id> <thread-id>",
+			},
+			{
+				Name:        "remove",
+				Description: "Remove a thread",
+				Usage:       "norn threads remove <weave-id> <thread-id>",
+			},
+		},
+	}
+}
+
+func initHelp() HelpTopic {
+	return HelpTopic{
+		Name:        "norn init",
+		Description: "Bootstrap a new Norn project or workspace",
+		Usage:       "norn init [flags]",
+		Commands: []CommandHelp{
+			{
+				Name:        "init",
+				Description: "Bootstrap a new Norn project or workspace",
+				Usage:       "norn init [flags]",
+				Flags: []FlagHelp{
+					{Name: "--no-interactive", Description: "Run in non-interactive mode"},
+					{Name: "--enable-opencode", Description: "Enable OpenCode integration"},
+					{Name: "--mode=folder|branch", Description: "Planning mode (default: folder)"},
+					{Name: "--name=<name>", Description: "Project name"},
+					{Name: "--branch=<branch>", Description: "Planning branch name"},
+					{Name: "--create-branch", Description: "Create the planning branch if it doesn't exist"},
+					{Name: "--theme=<theme>", Description: "UI theme"},
+					{Name: "--languages=<list>", Description: "Comma-separated language list"},
+					{Name: "--tools=<list>", Description: "Comma-separated tool list"},
+					{Name: "--frameworks=<list>", Description: "Comma-separated framework list"},
+					{Name: "--model=<model>", Description: "OpenCode model"},
+					{Name: "--agent=<agent>", Description: "OpenCode agent"},
+					{Name: "--prompt=<prompt>", Description: "OpenCode assisted init prompt"},
+				},
+				Examples: []string{
+					"norn init",
+					"norn init --no-interactive --name=my-project --mode=folder --enable-opencode",
+					"norn init --no-interactive --mode=branch --branch=loom --create-branch",
+				},
+			},
+		},
+	}
 }

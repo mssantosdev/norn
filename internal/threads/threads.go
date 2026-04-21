@@ -152,6 +152,23 @@ func DefaultBody(summary string) string {
 
 - define the acceptance criteria for this thread
 
+## Documentation
+
+- [ ] CLI --help text updated for any new commands or flags
+- [ ] Project docs (docs/) updated with user-facing guides
+- [ ] Specifications documented for AI agent consumption
+- [ ] Integration boundaries documented (what Norn owns vs what OpenCode owns)
+
+## Guides
+
+- Quick start path for users
+- Configuration reference (if applicable)
+
+## Specifications
+
+- Data formats and schemas
+- API/contracts for AI agent interaction
+
 ## Notes
 
 - replace this template content with project-specific details

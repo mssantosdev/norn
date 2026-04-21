@@ -30,4 +30,6 @@ Integrates approved work and owns merge/release transitions.
 
 Norn stores fate source data in `.norn/fates/*.yaml` and renders OpenCode-compatible agent files into `.opencode/agents/`.
 
+Fate permissions are derived from the tool registry (`.norn/tools/*.yaml`).
+
 Planner/specifier is currently outside this generated core fate set.

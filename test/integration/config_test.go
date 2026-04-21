@@ -163,8 +163,8 @@ planning:
 	if w.Runes.UI.Theme != "tokyonight" {
 		t.Fatalf("expected default theme tokyonight, got %q", w.Runes.UI.Theme)
 	}
-	if w.Runes.Planning.Path != "loom" {
-		t.Fatalf("expected default planning path loom, got %q", w.Runes.Planning.Path)
+	if w.Runes.Planning.Path != ".norn" {
+		t.Fatalf("expected default planning path .norn, got %q", w.Runes.Planning.Path)
 	}
 	if w.Runes.Planning.DefaultSurface != "shared" {
 		t.Fatalf("expected default planning surface shared, got %q", w.Runes.Planning.DefaultSurface)

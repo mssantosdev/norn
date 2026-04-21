@@ -23,8 +23,8 @@ func TestWeavesCRUD(t *testing.T) {
 		t.Fatalf("weaves add failed: %v", err)
 	}
 	for _, path := range []string{
-		filepath.Join(root, "loom", "weaves", "planning-surface", "README.md"),
-		filepath.Join(root, "loom", "weaves", "planning-surface", "threads.md"),
+		filepath.Join(root, ".norn", "weaves", "planning-surface", "README.md"),
+		filepath.Join(root, ".norn", "weaves", "planning-surface", "threads.md"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected %s: %v", path, err)
@@ -36,7 +36,7 @@ func TestWeavesCRUD(t *testing.T) {
 	if err := cli.Run([]string{"weaves", "remove", "planning-surface"}); err != nil {
 		t.Fatalf("weaves remove failed: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "loom", "weaves", "planning-surface")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, ".norn", "weaves", "planning-surface")); !os.IsNotExist(err) {
 		t.Fatalf("expected weave to be removed, stat err=%v", err)
 	}
 }
@@ -57,7 +57,7 @@ func TestThreadsCRUD(t *testing.T) {
 	if err := cli.Run([]string{"threads", "add", "planning-surface", "Add Weaves CLI", "Implement the weave command surface"}); err != nil {
 		t.Fatalf("threads add failed: %v", err)
 	}
-	threadPath := filepath.Join(root, "loom", "weaves", "planning-surface", "threads", "add-weaves-cli.md")
+	threadPath := filepath.Join(root, ".norn", "weaves", "planning-surface", "threads", "add-weaves-cli.md")
 	if _, err := os.Stat(threadPath); err != nil {
 		t.Fatalf("expected thread file: %v", err)
 	}
@@ -72,46 +72,32 @@ func TestThreadsCRUD(t *testing.T) {
 	}
 }
 
-func TestOverlayArtifactsOverrideSharedOnRead(t *testing.T) {
+func TestReadThread(t *testing.T) {
 	root := t.TempDir()
 	wd, _ := os.Getwd()
 	defer func() { _ = os.Chdir(wd) }()
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=overlay-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=read-thread-test", "--mode=folder"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
-	if err := cli.Run([]string{"weaves", "add", "Planning Surface", "Shared planning artifacts"}); err != nil {
+	if err := cli.Run([]string{"weaves", "add", "Planning Surface", "Test weave"}); err != nil {
 		t.Fatalf("weaves add failed: %v", err)
 	}
-	sharedThread := filepath.Join(root, "loom", "weaves", "planning-surface", "threads", "add-weaves-cli.md")
-	if err := os.MkdirAll(filepath.Dir(sharedThread), 0o755); err != nil {
+	threadPath := filepath.Join(root, ".norn", "weaves", "planning-surface", "threads", "test-thread.md")
+	if err := os.MkdirAll(filepath.Dir(threadPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(sharedThread, []byte("---\ntitle: Add Weaves CLI\nsummary: Shared version\nweave: planning-surface\n---\n\nshared body\n"), 0o644); err != nil {
+	if err := os.WriteFile(threadPath, []byte("---\ntitle: Test Thread\nsummary: Test summary\nweave: planning-surface\n---\n\ntest body\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	overlayThread := filepath.Join(root, ".norn", "loom", "weaves", "planning-surface", "threads", "add-weaves-cli.md")
-	if err := os.MkdirAll(filepath.Dir(overlayThread), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(overlayThread, []byte("---\ntitle: Add Weaves CLI\nsummary: Local overlay version\nweave: planning-surface\n---\n\noverlay body\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	doc, err := threads.LoadMerged(filepath.Join(root, "loom"), filepath.Join(root, ".norn", "loom"), "planning-surface", "add-weaves-cli")
+	doc, err := threads.Load(filepath.Join(root, ".norn"), "planning-surface", "test-thread")
 	if err != nil {
-		t.Fatalf("load merged thread failed: %v", err)
+		t.Fatalf("load thread failed: %v", err)
 	}
-	if doc.Summary != "Local overlay version" || doc.Body != "overlay body" {
-		t.Fatalf("expected overlay thread to win, got summary=%q body=%q", doc.Summary, doc.Body)
-	}
-	items, err := threads.ListMerged(filepath.Join(root, "loom"), filepath.Join(root, ".norn", "loom"), "planning-surface")
-	if err != nil {
-		t.Fatalf("list merged threads failed: %v", err)
-	}
-	if len(items) != 1 || items[0].Summary != "Local overlay version" {
-		t.Fatalf("expected merged thread list to prefer overlay, got %#v", items)
+	if doc.Summary != "Test summary" || doc.Body != "test body" {
+		t.Fatalf("expected thread content, got summary=%q body=%q", doc.Summary, doc.Body)
 	}
 }
 
@@ -128,11 +114,8 @@ func TestWeavesAddToLocalSurface(t *testing.T) {
 	if err := cli.Run([]string{"weaves", "add", "--surface=local", "Local Planning", "Local only weave"}); err != nil {
 		t.Fatalf("weaves add local failed: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, ".norn", "loom", "weaves", "local-planning", "README.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, ".norn", "weaves", "local-planning", "README.md")); err != nil {
 		t.Fatalf("expected local weave file: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(root, "loom", "weaves", "local-planning", "README.md")); !os.IsNotExist(err) {
-		t.Fatalf("expected no shared weave file, stat err=%v", err)
 	}
 }
 
@@ -153,8 +136,7 @@ func TestThreadsAddToBothSurfaces(t *testing.T) {
 		t.Fatalf("threads add both failed: %v", err)
 	}
 	for _, path := range []string{
-		filepath.Join(root, "loom", "weaves", "planning-surface", "threads", "add-weaves-cli.md"),
-		filepath.Join(root, ".norn", "loom", "weaves", "planning-surface", "threads", "add-weaves-cli.md"),
+		filepath.Join(root, ".norn", "weaves", "planning-surface", "threads", "add-weaves-cli.md"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected thread file at %s: %v", path, err)

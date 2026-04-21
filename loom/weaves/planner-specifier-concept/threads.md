@@ -1,3 +1,0 @@
-# Threads
-
-- planner-specifier-concept

@@ -14,6 +14,9 @@ import (
 )
 
 func runWarps(args []string) error {
+	if showHelp(warpsHelp(), args) {
+		return nil
+	}
 	w, err := norn.Load(".")
 	if err != nil {
 		return err
@@ -309,4 +312,73 @@ func promptWarpCreation() (norn.Warp, error) {
 		return norn.Warp{}, fmt.Errorf("warp creation cancelled")
 	}
 	return norn.Warp{ID: id, Title: title, Summary: summary, Status: status, Owner: owner, Root: root, Branch: branch, WeaveIDs: splitCSV(weavesValue), ThreadIDs: splitCSV(threadsValue), Notes: notes}, nil
+}
+
+func warpsHelp() HelpTopic {
+	return HelpTopic{
+		Name:        "norn warps",
+		Description: "Manage runtime warp lanes",
+		Usage:       "norn warps <command> [flags]",
+		Commands: []CommandHelp{
+			{
+				Name:        "list",
+				Description: "List warp lanes",
+				Usage:       "norn warps list [--view=runtime]",
+				Flags: []FlagHelp{
+					{Name: "--view=runtime", Description: "Show runtime ownership view"},
+				},
+				Examples: []string{
+					"norn warps list",
+					"norn warps list --view=runtime",
+				},
+			},
+			{
+				Name:        "add",
+				Description: "Add a new warp lane",
+				Usage:       "norn warps add [--id=...] [--status=...] [--owner=...] [--root=...] [--branch=...] [--weaves=a,b] [--threads=a,b] [--notes=...] <title> <summary>",
+				Flags: []FlagHelp{
+					{Name: "--id=<id>", Description: "Warp ID (derived from title if omitted)"},
+					{Name: "--status=<status>", Description: "Warp status"},
+					{Name: "--owner=<owner>", Description: "Warp owner"},
+					{Name: "--root=<path>", Description: "Root path"},
+					{Name: "--branch=<branch>", Description: "Git branch"},
+					{Name: "--weaves=a,b", Description: "Associated weave IDs"},
+					{Name: "--threads=a,b", Description: "Associated thread IDs"},
+					{Name: "--notes=<text>", Description: "Warp notes"},
+				},
+				Examples: []string{
+					"norn warps add \"API Warp\" \"Runtime lane for API\"",
+					"norn warps add --status=active --owner=marcus \"API Warp\" \"Runtime lane for API\"",
+				},
+			},
+			{
+				Name:        "assign",
+				Description: "Assign a weave or thread to a warp",
+				Usage:       "norn warps assign --kind=weave|thread --id=<artifact-id> --warp=<warp-id> [--owner=...] [--state=...] [--notes=...]",
+				Flags: []FlagHelp{
+					{Name: "--kind=weave|thread", Description: "Artifact kind"},
+					{Name: "--id=<id>", Description: "Artifact ID"},
+					{Name: "--warp=<warp-id>", Description: "Target warp ID"},
+					{Name: "--owner=<owner>", Description: "Assignment owner"},
+					{Name: "--state=<state>", Description: "Assignment state"},
+					{Name: "--notes=<text>", Description: "Assignment notes"},
+				},
+			},
+			{
+				Name:        "assignment",
+				Description: "Show or remove runtime assignments",
+				Usage:       "norn warps assignment <show|remove> <weave|thread> <id>",
+			},
+			{
+				Name:        "show",
+				Description: "Show warp details",
+				Usage:       "norn warps show <warp-id>",
+			},
+			{
+				Name:        "remove",
+				Description: "Remove a warp",
+				Usage:       "norn warps remove <warp-id>",
+			},
+		},
+	}
 }

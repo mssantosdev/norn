@@ -14,10 +14,10 @@ Non-interactive folder mode:
 norn init --no-interactive --name=my-project --mode=folder --enable-opencode
 ```
 
-Non-interactive planning branch mode:
+Non-interactive:
 
 ```bash
-norn init --no-interactive --mode=branch --branch=loom --create-branch
+norn init --no-interactive --name=my-project --enable-opencode
 ```
 
 ## Inspect
@@ -26,7 +26,7 @@ norn init --no-interactive --mode=branch --branch=loom --create-branch
 norn status
 norn detect
 norn fates list
-norn commands list
+norn tools list
 norn runes show
 norn runes resolve
 norn runes resolve --format=yaml
@@ -54,7 +54,26 @@ norn runes edit --scope=local --unset opencode.response_language
 ```bash
 norn patterns add "API Contract" "Document the API expectations"
 norn skills add "Deploy Flow" "Document the deployment path"
-norn commands add lint lint "npm run lint"
+norn tools add lint lint "npm run lint"
+```
+
+## Get help
+
+```bash
+norn --help
+norn --help --format=json
+norn init --help
+norn runes --help
+norn warps --help
+```
+
+## Export to OpenCode
+
+```bash
+norn export --opencode
+norn export --opencode --dry-run
+norn fate export --opencode
+norn skill export --opencode
 ```
 
 ## Validate OpenCode availability
@@ -62,6 +81,8 @@ norn commands add lint lint "npm run lint"
 ```bash
 norn chat validate
 ```
+
+For more on OpenCode integration, see `docs/opencode.md`.
 
 ## Runtime coordination
 

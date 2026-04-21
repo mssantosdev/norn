@@ -15,6 +15,9 @@ import (
 )
 
 func runRunes(args []string) error {
+	if showHelp(runesHelp(), args) {
+		return nil
+	}
 	if len(args) == 0 {
 		return runRunesInteractive()
 	}
@@ -27,6 +30,55 @@ func runRunes(args []string) error {
 		return runRunesEdit(args[1:])
 	default:
 		return fmt.Errorf("usage: norn runes <show|resolve|edit>")
+	}
+}
+
+func runesHelp() HelpTopic {
+	return HelpTopic{
+		Name:        "norn runes",
+		Description: "Manage Norn configuration",
+		Usage:       "norn runes <command> [flags]",
+		Commands: []CommandHelp{
+			{
+				Name:        "show",
+				Description: "Show configuration for a scope",
+				Usage:       "norn runes show [--scope=global|workspace|local]",
+				Flags: []FlagHelp{
+					{Name: "--scope=global|workspace|local", Description: "Config scope to show"},
+				},
+				Examples: []string{
+					"norn runes show",
+					"norn runes show --scope=global",
+				},
+			},
+			{
+				Name:        "resolve",
+				Description: "Show effective configuration with origin metadata",
+				Usage:       "norn runes resolve [--format=table|yaml]",
+				Flags: []FlagHelp{
+					{Name: "--format=table|yaml", Description: "Output format (default: table)"},
+				},
+				Examples: []string{
+					"norn runes resolve",
+					"norn runes resolve --format=yaml",
+				},
+			},
+			{
+				Name:        "edit",
+				Description: "Edit configuration interactively or non-interactively",
+				Usage:       "norn runes edit [--scope=global|workspace|local] [--set path=value] [--unset path]",
+				Flags: []FlagHelp{
+					{Name: "--scope=global|workspace|local", Description: "Config scope to edit"},
+					{Name: "--set path=value", Description: "Set a config value"},
+					{Name: "--unset path", Description: "Unset a config value"},
+				},
+				Examples: []string{
+					"norn runes edit",
+					"norn runes edit --scope=workspace --set preferences.language=pt-BR",
+					"norn runes edit --scope=local --unset opencode.response_language",
+				},
+			},
+		},
 	}
 }
 

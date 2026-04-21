@@ -7,7 +7,7 @@ Norn is a multi-agent planning and coordination harness built to work with simpl
 - interactive-first CLI with Charm-based UI
 - non-interactive pathways for automation and agent usage
 - root-level `.norn/` runtime coordination
-- flexible planning sources through a shared `loom/` directory or planning branch mode
+- all artifacts consolidated under `.norn/`
 - four core fates: `keeper`, `weaver`, `judge`, and `fates`
 
 ## Current commands
@@ -15,21 +15,18 @@ Norn is a multi-agent planning and coordination harness built to work with simpl
 - `norn init`
 - `norn status`
 - `norn detect`
-- `norn fates list|show`
-- `norn patterns list|add|show|remove`
-- `norn skills list|add|show|remove`
-- `norn commands list|add|remove`
+- `norn fates list|show|add|edit|remove`
+- `norn patterns list|add|show|edit|remove`
+- `norn skills list|add|show|edit|remove`
+- `norn tools list|add|show|edit|remove`
 - `norn weaves list|add|show|remove`
 - `norn threads list|add|show|remove`
 - `norn warps list|add|assign|assignment|show|remove`
 - `norn runes show|resolve|edit`
-- `norn chat validate`
+- `norn export --opencode`
+- `norn chat validate|status|assist|preview`
 
-Write-surface selection is supported for planning creation commands:
-
-- `--surface=shared`
-- `--surface=local`
-- `--surface=both`
+All commands support `--help` and `--help --format=json` for discovery.
 
 Interactive creation is available by default for:
 
@@ -39,7 +36,6 @@ Interactive creation is available by default for:
 These flows currently provide:
 
 - Charm TUI forms
-- surface selection
 - template-backed goal, user story, scope/strands, and acceptance sections
 - preview before write
 
@@ -68,14 +64,19 @@ Config commands support both interactive and non-interactive usage:
 - `--format=yaml` returns the full structured resolution payload
 - `resolve` works both inside a workspace and outside one, using global config plus defaults when no workspace is present
 
-## Planning surfaces
+## Planning Artifacts
 
-- Shared plans live in `loom/` by default.
-- Local-only plans live in `.norn/loom/`.
-- Runtime coordination lives in `.norn/spindle/`.
-- Planning branch mode uses a dedicated git worktree, defaulting to `.loom/`.
+All Norn artifacts live under `.norn/`:
 
-Runtime warp records are local and readable under `.norn/spindle/warps/`.
+- `.norn/weaves/<weave-id>/README.md`
+- `.norn/weaves/<weave-id>/threads.md`
+- `.norn/weaves/<weave-id>/threads/<thread-id>.md`
+- `.norn/patterns/`
+- `.norn/skills/`
+- `.norn/fates/`
+- `.norn/tools/`
+
+Runtime coordination lives in `.norn/spindle/`.
 
 - `norn warps list`
 - `norn warps list --view=runtime`
@@ -87,31 +88,17 @@ Runtime warp records are local and readable under `.norn/spindle/warps/`.
 - `norn warps show <warp-id>`
 - `norn warps remove <warp-id>`
 
-Planning and documentation artifacts live in `loom/` and `.norn/loom/`.
+Capability artifacts:
 
-Current shared weave/thread planning layout:
-
-- `loom/weaves/<weave-id>/README.md`
-- `loom/weaves/<weave-id>/threads.md`
-- `loom/weaves/<weave-id>/threads/<thread-id>.md`
-
-Current read behavior for `weaves` and `threads`:
-
-- reads merge shared `loom/` and local `.norn/loom/`
-- local overlay artifacts win when the same artifact id exists in both locations
-- writes default to the shared planning root unless `--surface=local` or `--surface=both` is provided
-
-Capability artifacts live under `.norn/`:
-
-- `.norn/fates/`
-- `.norn/skills/`
-- `.norn/commands/`
+- `.norn/fates/` - Agent fate definitions
+- `.norn/skills/` - Agent capability documents
+- `.norn/tools/` - Tool permission batch definitions
 
 All artifact classes should remain readable and easy to index for both humans and AI agents.
 
 ## Status
 
-The repository has a working v0.0.1 bootstrap foundation with init, detection, managed commands, generated fates, and OpenCode-compatible agent export.
+The repository has a working v0.0.1 bootstrap foundation with init, detection, managed tools, generated fates, skill export, and OpenCode-compatible agent export.
 
 The optional planner/specifier specialist is documented as a concept for v0.0.1, but workflow and invocation are still deferred.
 
@@ -122,9 +109,18 @@ The runtime slice now includes local spindle-backed warp records and direct runt
 For a fresh session or a new machine, start with:
 
 1. `AGENTS.md`
-2. `.norn/loom/memory/next-session-bootstrap.md`
-3. the memory files under `.norn/loom/memory/`
-4. Fizzy cards `#25`, `#28`, `#30`, and `#32`
+2. `.norn/memory/next-session-bootstrap.md`
+3. the memory files under `.norn/memory/`
+4. Fizzy cards `#21`, `#23`
+
+## Documentation
+
+- `docs/getting-started.md` - Quick start guide
+- `docs/architecture.md` - Architecture and design
+- `docs/fates.md` - Fate roles and generation
+- `docs/opencode.md` - OpenCode integration guide
+- `docs/opencode-integration.md` - Living specification
+- `docs/decisions.md` - Key design decisions
 
 ## Shared Tracking
 

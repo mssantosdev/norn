@@ -99,7 +99,7 @@ type Detection struct {
 	Locations  []string
 }
 
-type ManagedCommand struct {
+type ManagedTool struct {
 	ID          string   `yaml:"id"`
 	Title       string   `yaml:"title"`
 	Description string   `yaml:"description,omitempty"`

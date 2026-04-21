@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mssantosdev/norn/internal/commands"
 	"github.com/mssantosdev/norn/internal/norn"
+	"github.com/mssantosdev/norn/internal/tools"
 	"gopkg.in/yaml.v3"
 )
 
@@ -103,8 +103,8 @@ func List(root string) ([]norn.FateSource, error) {
 	return out, nil
 }
 
-func RenderOpenCode(source norn.FateSource, commandsRoot string) (string, error) {
-	cmds, err := commands.List(commandsRoot)
+func RenderOpenCode(source norn.FateSource, toolsRoot string) (string, error) {
+	cmds, err := tools.List(toolsRoot)
 	if err != nil {
 		return "", err
 	}
@@ -138,7 +138,7 @@ func RenderOpenCode(source norn.FateSource, commandsRoot string) (string, error)
 	return b.String(), nil
 }
 
-func ExportOpenCode(sourceRoot, commandsRoot, targetRoot string) error {
+func ExportOpenCode(sourceRoot, toolsRoot, targetRoot string) error {
 	items, err := List(sourceRoot)
 	if err != nil {
 		return err
@@ -147,7 +147,7 @@ func ExportOpenCode(sourceRoot, commandsRoot, targetRoot string) error {
 		return err
 	}
 	for _, item := range items {
-		rendered, err := RenderOpenCode(item, commandsRoot)
+		rendered, err := RenderOpenCode(item, toolsRoot)
 		if err != nil {
 			return err
 		}
@@ -158,7 +158,7 @@ func ExportOpenCode(sourceRoot, commandsRoot, targetRoot string) error {
 	return nil
 }
 
-func permissionSets(role string, cmds []norn.ManagedCommand, source norn.FateSource) ([]string, []string, []string) {
+func permissionSets(role string, cmds []norn.ManagedTool, source norn.FateSource) ([]string, []string, []string) {
 	allowSet := map[string]bool{}
 	askSet := map[string]bool{}
 	denySet := map[string]bool{}
@@ -211,6 +211,10 @@ func permissionSets(role string, cmds []norn.ManagedCommand, source norn.FateSou
 		denySet[item] = true
 	}
 	return sortedKeys(allowSet), sortedKeys(askSet), sortedKeys(denySet)
+}
+
+func Delete(root, name string) error {
+	return os.Remove(filepath.Join(root, name+".yaml"))
 }
 
 func sortedKeys(items map[string]bool) []string {
