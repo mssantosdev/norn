@@ -98,8 +98,29 @@ func runWarps(args []string) error {
 		}
 		return warps.Save(root, warp)
 	}
-	if len(args) == 2 && args[0] == "show" {
-		item, err := warps.Load(root, args[1])
+	if args[0] == "show" {
+		warpID := ""
+		if len(args) >= 2 {
+			warpID = args[1]
+		} else {
+			items, err := warps.List(root)
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no warps available; create a warp first")
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			selected, err := promptArtifactSelection("Select a warp", artifactItems)
+			if err != nil {
+				return err
+			}
+			warpID = selected
+		}
+		item, err := warps.Load(root, warpID)
 		if err != nil {
 			return err
 		}
@@ -111,8 +132,29 @@ func runWarps(args []string) error {
 		logger.Print(string(data))
 		return nil
 	}
-	if len(args) == 2 && args[0] == "remove" {
-		return warps.Delete(root, args[1])
+	if args[0] == "remove" {
+		warpID := ""
+		if len(args) >= 2 {
+			warpID = args[1]
+		} else {
+			items, err := warps.List(root)
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no warps available; create a warp first")
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			selected, err := promptArtifactSelection("Select a warp to remove", artifactItems)
+			if err != nil {
+				return err
+			}
+			warpID = selected
+		}
+		return warps.Delete(root, warpID)
 	}
 	return fmt.Errorf("usage: norn warps <list|add|assign|assignment|show|remove>")
 }

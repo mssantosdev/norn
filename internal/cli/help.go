@@ -163,7 +163,7 @@ func rootHelp() HelpTopic {
 	return HelpTopic{
 		Name:        "norn",
 		Description: "Weave-aware multi-agent harness",
-		Version:     "0.0.1",
+		Version:     "0.0.3",
 		Usage:       "norn <command> [flags]",
 		Commands: []CommandHelp{
 			{
@@ -250,6 +250,16 @@ func rootHelp() HelpTopic {
 				Name:        "chat",
 				Description: "Validate and manage OpenCode integration",
 				Usage:       "norn chat <validate>",
+			},
+			{
+				Name:        "completion",
+				Description: "Generate shell completion scripts",
+				Usage:       "norn completion <bash|zsh|fish>",
+				Examples: []string{
+					"norn completion bash > ~/.config/norn/completions.bash",
+					"norn completion zsh > ~/.config/norn/completions.zsh",
+					"norn completion fish > ~/.config/fish/completions/norn.fish",
+				},
 			},
 		},
 	}

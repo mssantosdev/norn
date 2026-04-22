@@ -3,6 +3,7 @@ package integration
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mssantosdev/norn/internal/cli"
@@ -117,4 +118,28 @@ func TestWeavesAddSimple(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, ".norn", "weaves", "simple-planning", "README.md")); err != nil {
 		t.Fatalf("expected weave file: %v", err)
 	}
+}
+
+func TestWeavesShowWithoutID(t *testing.T) {
+	root := t.TempDir()
+	wd, _ := os.Getwd()
+	defer func() { _ = os.Chdir(wd) }()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=show-test"}); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+	// Without artifacts, show should return error (can't prompt in test)
+	err := cli.Run([]string{"weaves", "show"})
+	if err == nil {
+		t.Fatal("expected error when no weaves exist")
+	}
+	if !contains(err.Error(), "no weaves available") {
+		t.Fatalf("expected 'no weaves available' error, got: %v", err)
+	}
+}
+
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
 }

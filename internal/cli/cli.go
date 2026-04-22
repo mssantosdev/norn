@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -23,7 +24,7 @@ import (
 	"github.com/mssantosdev/norn/internal/weaves"
 )
 
-var errUsage = errors.New("usage: norn <init|status|detect|fates|patterns|skills|tools|weaves|threads|warps|runes|chat>")
+var errUsage = errors.New("usage: norn <init|status|detect|fates|patterns|skills|tools|weaves|threads|warps|runes|chat|export|completion>")
 
 func Run(args []string) error {
 	if len(args) == 0 {
@@ -67,6 +68,8 @@ func Run(args []string) error {
 			return nil
 		}
 		return runChat(args[1:])
+	case "completion":
+		return runCompletion(args[1:])
 	default:
 		return errUsage
 	}
@@ -357,8 +360,29 @@ func runFates(args []string) error {
 		}
 		return nil
 	}
-	if len(args) == 2 && args[0] == "show" {
-		item, err := fates.Load(norn.FatesRoot(w), args[1])
+	if args[0] == "show" {
+		fateName := ""
+		if len(args) >= 2 {
+			fateName = args[1]
+		} else {
+			items, err := fates.List(norn.FatesRoot(w))
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no fates available")
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.Name, Title: item.Description})
+			}
+			selected, err := promptArtifactSelection("Select a fate", artifactItems)
+			if err != nil {
+				return err
+			}
+			fateName = selected
+		}
+		item, err := fates.Load(norn.FatesRoot(w), fateName)
 		if err != nil {
 			return err
 		}
@@ -378,23 +402,66 @@ func runFates(args []string) error {
 		}
 		return runFatesAddNonInteractive(w, args[1], strings.Join(args[2:], " "))
 	}
-	if len(args) == 2 && args[0] == "edit" {
-		return runFatesEditInteractive(w, args[1])
-	}
-	if len(args) >= 3 && args[0] == "edit" {
+	if args[0] == "edit" {
+		fateName := ""
+		if len(args) >= 2 && !strings.HasPrefix(args[1], "--set=") {
+			fateName = args[1]
+		} else {
+			items, err := fates.List(norn.FatesRoot(w))
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no fates available")
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.Name, Title: item.Description})
+			}
+			selected, err := promptArtifactSelection("Select a fate to edit", artifactItems)
+			if err != nil {
+				return err
+			}
+			fateName = selected
+		}
 		sets := []string{}
-		for _, arg := range args[2:] {
+		startIdx := 2
+		if len(args) >= 2 && strings.HasPrefix(args[1], "--set=") {
+			startIdx = 1
+		}
+		for _, arg := range args[startIdx:] {
 			if strings.HasPrefix(arg, "--set=") {
 				sets = append(sets, strings.TrimPrefix(arg, "--set="))
 			}
 		}
 		if len(sets) == 0 {
-			return fmt.Errorf("usage: norn fates edit <name> [--set field=value ...]")
+			return runFatesEditInteractive(w, fateName)
 		}
-		return runFatesEditNonInteractive(w, args[1], sets)
+		return runFatesEditNonInteractive(w, fateName, sets)
 	}
-	if len(args) == 2 && args[0] == "remove" {
-		if err := fates.Delete(norn.FatesRoot(w), args[1]); err != nil {
+	if args[0] == "remove" {
+		fateName := ""
+		if len(args) >= 2 {
+			fateName = args[1]
+		} else {
+			items, err := fates.List(norn.FatesRoot(w))
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no fates available")
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.Name, Title: item.Description})
+			}
+			selected, err := promptArtifactSelection("Select a fate to remove", artifactItems)
+			if err != nil {
+				return err
+			}
+			fateName = selected
+		}
+		if err := fates.Delete(norn.FatesRoot(w), fateName); err != nil {
 			return err
 		}
 		return fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w))
@@ -556,8 +623,29 @@ func runDocCollection(kind string, args []string) error {
 		doc := norn.Document{ID: slug(args[1]), Title: args[1], Summary: strings.Join(args[2:], " "), Body: strings.Join(args[2:], " ")}
 		return saveDoc(kind, root, doc)
 	}
-	if len(args) == 2 && args[0] == "show" {
-		doc, err := loadDoc(kind, root, args[1])
+	if args[0] == "show" {
+		docID := ""
+		if len(args) >= 2 {
+			docID = args[1]
+		} else {
+			items, err := listDocs(kind, root)
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no %s available", kind)
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			selected, err := promptArtifactSelection(fmt.Sprintf("Select a %s", kind), artifactItems)
+			if err != nil {
+				return err
+			}
+			docID = selected
+		}
+		doc, err := loadDoc(kind, root, docID)
 		if err != nil {
 			return err
 		}
@@ -565,23 +653,66 @@ func runDocCollection(kind string, args []string) error {
 		logger.Print(doc.Body)
 		return nil
 	}
-	if len(args) == 2 && args[0] == "edit" {
-		return runDocEditInteractive(kind, root, args[1])
-	}
-	if len(args) >= 3 && args[0] == "edit" {
+	if args[0] == "edit" {
+		docID := ""
+		if len(args) >= 2 && !strings.HasPrefix(args[1], "--set=") {
+			docID = args[1]
+		} else {
+			items, err := listDocs(kind, root)
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no %s available", kind)
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			selected, err := promptArtifactSelection(fmt.Sprintf("Select a %s to edit", kind), artifactItems)
+			if err != nil {
+				return err
+			}
+			docID = selected
+		}
 		sets := []string{}
-		for _, arg := range args[2:] {
+		startIdx := 2
+		if len(args) >= 2 && strings.HasPrefix(args[1], "--set=") {
+			startIdx = 1
+		}
+		for _, arg := range args[startIdx:] {
 			if strings.HasPrefix(arg, "--set=") {
 				sets = append(sets, strings.TrimPrefix(arg, "--set="))
 			}
 		}
 		if len(sets) == 0 {
-			return fmt.Errorf("usage: norn %s edit <id> [--set field=value ...]", kind)
+			return runDocEditInteractive(kind, root, docID)
 		}
-		return runDocEditNonInteractive(kind, root, args[1], sets)
+		return runDocEditNonInteractive(kind, root, docID, sets)
 	}
-	if len(args) == 2 && args[0] == "remove" {
-		return deleteDoc(kind, root, args[1])
+	if args[0] == "remove" {
+		docID := ""
+		if len(args) >= 2 {
+			docID = args[1]
+		} else {
+			items, err := listDocs(kind, root)
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no %s available", kind)
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			selected, err := promptArtifactSelection(fmt.Sprintf("Select a %s to remove", kind), artifactItems)
+			if err != nil {
+				return err
+			}
+			docID = selected
+		}
+		return deleteDoc(kind, root, docID)
 	}
 	return fmt.Errorf("usage: norn %s <list|add|show|edit|remove>", kind)
 }
@@ -663,8 +794,29 @@ func runTools(args []string) error {
 		}
 		return fates.ExportOpenCode(norn.FatesRoot(w), root, norn.OpenCodeAgentsRoot(w))
 	}
-	if len(args) == 2 && args[0] == "show" {
-		item, err := toolstore.Load(root, args[1])
+	if args[0] == "show" {
+		toolID := ""
+		if len(args) >= 2 {
+			toolID = args[1]
+		} else {
+			items, err := toolstore.List(root)
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no tools available")
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Description})
+			}
+			selected, err := promptArtifactSelection("Select a tool", artifactItems)
+			if err != nil {
+				return err
+			}
+			toolID = selected
+		}
+		item, err := toolstore.Load(root, toolID)
 		if err != nil {
 			return err
 		}
@@ -680,23 +832,66 @@ func runTools(args []string) error {
 		}
 		return nil
 	}
-	if len(args) == 2 && args[0] == "edit" {
-		return runToolsEditInteractive(w, root, args[1])
-	}
-	if len(args) >= 3 && args[0] == "edit" {
+	if args[0] == "edit" {
+		toolID := ""
+		if len(args) >= 2 && !strings.HasPrefix(args[1], "--set=") {
+			toolID = args[1]
+		} else {
+			items, err := toolstore.List(root)
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no tools available")
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Description})
+			}
+			selected, err := promptArtifactSelection("Select a tool to edit", artifactItems)
+			if err != nil {
+				return err
+			}
+			toolID = selected
+		}
 		sets := []string{}
-		for _, arg := range args[2:] {
+		startIdx := 2
+		if len(args) >= 2 && strings.HasPrefix(args[1], "--set=") {
+			startIdx = 1
+		}
+		for _, arg := range args[startIdx:] {
 			if strings.HasPrefix(arg, "--set=") {
 				sets = append(sets, strings.TrimPrefix(arg, "--set="))
 			}
 		}
 		if len(sets) == 0 {
-			return fmt.Errorf("usage: norn tools edit <id> [--set field=value ...]")
+			return runToolsEditInteractive(w, root, toolID)
 		}
-		return runToolsEditNonInteractive(w, root, args[1], sets)
+		return runToolsEditNonInteractive(w, root, toolID, sets)
 	}
-	if len(args) == 2 && args[0] == "remove" {
-		if err := toolstore.Delete(root, args[1]); err != nil {
+	if args[0] == "remove" {
+		toolID := ""
+		if len(args) >= 2 {
+			toolID = args[1]
+		} else {
+			items, err := toolstore.List(root)
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no tools available")
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Description})
+			}
+			selected, err := promptArtifactSelection("Select a tool to remove", artifactItems)
+			if err != nil {
+				return err
+			}
+			toolID = selected
+		}
+		if err := toolstore.Delete(root, toolID); err != nil {
 			return err
 		}
 		return fates.ExportOpenCode(norn.FatesRoot(w), root, norn.OpenCodeAgentsRoot(w))
@@ -831,8 +1026,43 @@ func runWeaves(args []string) error {
 		}
 		return weaves.SaveToSurface(norn.SharedPlanningRoot(w), doc)
 	}
-	if len(args) == 2 && args[0] == "show" {
-		doc, err := weaves.LoadMerged(root, norn.OverlayPlanningRoot(w), args[1])
+	if args[0] == "show" {
+		weaveID := ""
+		if len(args) >= 2 {
+			weaveID = args[1]
+			// Try partial match resolution
+			items, err := weaves.ListMerged(root, norn.OverlayPlanningRoot(w))
+			if err != nil {
+				return err
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			resolved, resolveErr := resolveArtifactID(weaveID, artifactItems)
+			if resolveErr == nil {
+				weaveID = resolved
+			}
+			// If resolution fails, try direct load (might be exact match not in list)
+		} else {
+			items, err := weaves.ListMerged(root, norn.OverlayPlanningRoot(w))
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no weaves available; create a weave first")
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			selected, err := promptArtifactSelection("Select a weave", artifactItems)
+			if err != nil {
+				return err
+			}
+			weaveID = selected
+		}
+		doc, err := weaves.LoadMerged(root, norn.OverlayPlanningRoot(w), weaveID)
 		if err != nil {
 			return err
 		}
@@ -840,8 +1070,42 @@ func runWeaves(args []string) error {
 		logger.Print(doc.Body)
 		return nil
 	}
-	if len(args) == 2 && args[0] == "remove" {
-		return weaves.Delete(root, args[1])
+	if args[0] == "remove" {
+		weaveID := ""
+		if len(args) >= 2 {
+			weaveID = args[1]
+			// Try partial match resolution
+			items, err := weaves.ListMerged(root, norn.OverlayPlanningRoot(w))
+			if err != nil {
+				return err
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			resolved, resolveErr := resolveArtifactID(weaveID, artifactItems)
+			if resolveErr == nil {
+				weaveID = resolved
+			}
+		} else {
+			items, err := weaves.ListMerged(root, norn.OverlayPlanningRoot(w))
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no weaves available; create a weave first")
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			selected, err := promptArtifactSelection("Select a weave to remove", artifactItems)
+			if err != nil {
+				return err
+			}
+			weaveID = selected
+		}
+		return weaves.Delete(root, weaveID)
 	}
 	return fmt.Errorf("usage: norn weaves <list|add|show|remove>")
 }
@@ -858,8 +1122,18 @@ func runThreads(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("usage: norn threads <list|add|show|remove>")
 	}
-	if len(args) == 2 && args[0] == "list" {
-		items, err := threads.ListMerged(root, norn.OverlayPlanningRoot(w), args[1])
+	if args[0] == "list" {
+		weaveID := ""
+		if len(args) >= 2 {
+			weaveID = args[1]
+		} else {
+			selected, err := promptWeaveSelection(w, "Select a weave to list threads")
+			if err != nil {
+				return err
+			}
+			weaveID = selected
+		}
+		items, err := threads.ListMerged(root, norn.OverlayPlanningRoot(w), weaveID)
 		if err != nil {
 			return err
 		}
@@ -886,8 +1160,39 @@ func runThreads(args []string) error {
 		}
 		return threads.SaveToSurface(norn.SharedPlanningRoot(w), weaveID, doc)
 	}
-	if len(args) == 3 && args[0] == "show" {
-		doc, err := threads.LoadMerged(root, norn.OverlayPlanningRoot(w), args[1], args[2])
+	if args[0] == "show" {
+		weaveID := ""
+		if len(args) >= 2 {
+			weaveID = args[1]
+		} else {
+			selected, err := promptWeaveSelection(w, "Select a weave")
+			if err != nil {
+				return err
+			}
+			weaveID = selected
+		}
+		threadID := ""
+		if len(args) >= 3 {
+			threadID = args[2]
+		} else {
+			items, err := threads.ListMerged(root, norn.OverlayPlanningRoot(w), weaveID)
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no threads available in weave %s; create a thread first", weaveID)
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			selected, err := promptArtifactSelection("Select a thread", artifactItems)
+			if err != nil {
+				return err
+			}
+			threadID = selected
+		}
+		doc, err := threads.LoadMerged(root, norn.OverlayPlanningRoot(w), weaveID, threadID)
 		if err != nil {
 			return err
 		}
@@ -895,10 +1200,41 @@ func runThreads(args []string) error {
 		logger.Print(doc.Body)
 		return nil
 	}
-	if len(args) == 3 && args[0] == "remove" {
-		return threads.Delete(root, args[1], args[2])
+	if args[0] == "remove" {
+		weaveID := ""
+		if len(args) >= 2 {
+			weaveID = args[1]
+		} else {
+			selected, err := promptWeaveSelection(w, "Select a weave")
+			if err != nil {
+				return err
+			}
+			weaveID = selected
+		}
+		threadID := ""
+		if len(args) >= 3 {
+			threadID = args[2]
+		} else {
+			items, err := threads.ListMerged(root, norn.OverlayPlanningRoot(w), weaveID)
+			if err != nil {
+				return err
+			}
+			if len(items) == 0 {
+				return fmt.Errorf("no threads available in weave %s; create a thread first", weaveID)
+			}
+			artifactItems := make([]ArtifactItem, 0, len(items))
+			for _, item := range items {
+				artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+			}
+			selected, err := promptArtifactSelection("Select a thread to remove", artifactItems)
+			if err != nil {
+				return err
+			}
+			threadID = selected
+		}
+		return threads.Delete(root, weaveID, threadID)
 	}
-	return fmt.Errorf("usage: norn threads <list <weave-id>|add <weave-id> <title> <summary>|show <weave-id> <thread-id>|remove <weave-id> <thread-id>>")
+	return fmt.Errorf("usage: norn threads <list|add|show|remove>")
 }
 
 func runExport(args []string) error {
@@ -1269,6 +1605,122 @@ func themeOptions() []huh.Option[string] {
 		huh.NewOption("Dracula", "dracula"),
 		huh.NewOption("Nord", "nord"),
 		huh.NewOption("One Dark", "onedark"),
+	}
+}
+
+// ArtifactItem represents a selectable artifact for fuzzy find.
+type ArtifactItem struct {
+	ID      string
+	Title   string
+	Summary string
+}
+
+// promptArtifactSelection shows an interactive filterable list to select an artifact.
+// Returns the selected ID or error if cancelled.
+func promptArtifactSelection(title string, items []ArtifactItem) (string, error) {
+	if len(items) == 0 {
+		return "", fmt.Errorf("no artifacts available")
+	}
+	// Sort alphabetically by ID
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].ID < items[j].ID
+	})
+	options := make([]huh.Option[string], 0, len(items))
+	for _, item := range items {
+		label := item.ID
+		if item.Title != "" {
+			label = fmt.Sprintf("%s — %s", item.ID, item.Title)
+		}
+		options = append(options, huh.NewOption(label, item.ID))
+	}
+	selected := items[0].ID
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title(title).
+				Description(fmt.Sprintf("%d available. Type to filter.", len(items))).
+				Options(options...).
+				Value(&selected),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return "", err
+	}
+	return selected, nil
+}
+
+// promptWeaveSelection prompts the user to select a weave from the workspace.
+func promptWeaveSelection(w norn.Workspace, title string) (string, error) {
+	items, err := weaves.ListMerged(norn.SharedPlanningRoot(w), norn.OverlayPlanningRoot(w))
+	if err != nil {
+		return "", err
+	}
+	if len(items) == 0 {
+		return "", fmt.Errorf("no weaves available; create a weave first")
+	}
+	artifactItems := make([]ArtifactItem, 0, len(items))
+	for _, item := range items {
+		artifactItems = append(artifactItems, ArtifactItem{ID: item.ID, Title: item.Title, Summary: item.Summary})
+	}
+	return promptArtifactSelection(title, artifactItems)
+}
+
+// resolveArtifactID attempts exact match first, then substring match.
+// If exactly one substring match, asks for confirmation.
+// If multiple matches, returns error with list.
+func resolveArtifactID(query string, items []ArtifactItem) (string, error) {
+	if query == "" {
+		return "", fmt.Errorf("no artifact ID provided")
+	}
+	queryLower := strings.ToLower(query)
+
+	// Exact match first
+	for _, item := range items {
+		if strings.ToLower(item.ID) == queryLower {
+			return item.ID, nil
+		}
+	}
+
+	// Substring match
+	var matches []ArtifactItem
+	for _, item := range items {
+		if strings.Contains(strings.ToLower(item.ID), queryLower) ||
+			strings.Contains(strings.ToLower(item.Title), queryLower) {
+			matches = append(matches, item)
+		}
+	}
+
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("no artifact matches %q", query)
+	case 1:
+		// Ask for confirmation
+		confirmed := false
+		preview := fmt.Sprintf("ID: %s\nTitle: %s", matches[0].ID, matches[0].Title)
+		if matches[0].Summary != "" {
+			preview += fmt.Sprintf("\nSummary: %s", matches[0].Summary)
+		}
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewNote().Title("Did you mean?").Description(preview),
+				huh.NewConfirm().Title(fmt.Sprintf("Use '%s'?", matches[0].ID)).Value(&confirmed),
+			),
+		)
+		if err := form.Run(); err != nil {
+			return "", err
+		}
+		if !confirmed {
+			return "", fmt.Errorf("selection cancelled")
+		}
+		return matches[0].ID, nil
+	default:
+		// Multiple matches — error with list
+		var b strings.Builder
+		b.WriteString(fmt.Sprintf("ambiguous match for %q; multiple artifacts found:\n", query))
+		for _, m := range matches {
+			b.WriteString(fmt.Sprintf("  - %s (%s)\n", m.ID, m.Title))
+		}
+		return "", fmt.Errorf("%s", b.String())
 	}
 }
 
