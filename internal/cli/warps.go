@@ -236,17 +236,19 @@ func promptWarpAssignment(root string) (norn.RuntimeAssignment, error) {
 				huh.NewOption("Thread", "thread"),
 				huh.NewOption("Weave", "weave"),
 			).Value(&kind),
-			huh.NewInput().Title("Artifact ID").Value(&id),
-			huh.NewSelect[string]().Title("Warp").Options(warpOptions...).Value(&selectedWarp),
-			huh.NewInput().Title("Owner").Value(&owner),
+		),
+		huh.NewGroup(huh.NewInput().Title("Artifact ID").Value(&id)),
+		huh.NewGroup(huh.NewSelect[string]().Title("Warp").Options(warpOptions...).Value(&selectedWarp)),
+		huh.NewGroup(huh.NewInput().Title("Owner").Value(&owner)),
+		huh.NewGroup(
 			huh.NewSelect[string]().Title("State").Options(
 				huh.NewOption("Active", "active"),
 				huh.NewOption("Review", "review"),
 				huh.NewOption("Blocked", "blocked"),
 				huh.NewOption("Done", "done"),
 			).Value(&state),
-			huh.NewText().Title("Notes").Value(&notes),
 		),
+		huh.NewGroup(huh.NewText().Title("Notes").Value(&notes)),
 	)
 	if err := form.Run(); err != nil {
 		return norn.RuntimeAssignment{}, err
@@ -275,23 +277,23 @@ func promptWarpCreation() (norn.Warp, error) {
 	threadsValue := ""
 	notes := ""
 	form := huh.NewForm(
+		huh.NewGroup(huh.NewInput().Title("Title").Value(&title)),
+		huh.NewGroup(huh.NewInput().Title("ID").Description("Leave empty to derive from title").Value(&id)),
+		huh.NewGroup(huh.NewText().Title("Summary").Value(&summary)),
 		huh.NewGroup(
-			huh.NewInput().Title("Title").Value(&title),
-			huh.NewInput().Title("ID").Description("Leave empty to derive from title").Value(&id),
-			huh.NewText().Title("Summary").Value(&summary),
 			huh.NewSelect[string]().Title("Status").Options(
 				huh.NewOption("Active", "active"),
 				huh.NewOption("Paused", "paused"),
 				huh.NewOption("Review", "review"),
 				huh.NewOption("Done", "done"),
 			).Value(&status),
-			huh.NewInput().Title("Owner").Value(&owner),
-			huh.NewInput().Title("Root path").Value(&root),
-			huh.NewInput().Title("Branch").Value(&branch),
-			huh.NewInput().Title("Weaves").Description("Comma-separated weave ids").Value(&weavesValue),
-			huh.NewInput().Title("Threads").Description("Comma-separated thread ids").Value(&threadsValue),
-			huh.NewText().Title("Notes").Description("Blank uses a default runtime note scaffold").Value(&notes),
 		),
+		huh.NewGroup(huh.NewInput().Title("Owner").Value(&owner)),
+		huh.NewGroup(huh.NewInput().Title("Root path").Value(&root)),
+		huh.NewGroup(huh.NewInput().Title("Branch").Value(&branch)),
+		huh.NewGroup(huh.NewInput().Title("Weaves").Description("Comma-separated weave ids").Value(&weavesValue)),
+		huh.NewGroup(huh.NewInput().Title("Threads").Description("Comma-separated thread ids").Value(&threadsValue)),
+		huh.NewGroup(huh.NewText().Title("Notes").Description("Blank uses a default runtime note scaffold").Value(&notes)),
 	)
 	if err := form.Run(); err != nil {
 		return norn.Warp{}, err

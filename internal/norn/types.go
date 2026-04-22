@@ -75,8 +75,6 @@ type InitOptions struct {
 	Name            string
 	Mode            PlanningMode
 	PlanningPath    string
-	Branch          string
-	CreateBranch    bool
 	Skeleton        string
 	EnableOpenCode  bool
 	OpenCodeModel   string

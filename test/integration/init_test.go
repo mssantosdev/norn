@@ -16,7 +16,7 @@ func TestInitNonInteractiveFolderMode(t *testing.T) {
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=test-project", "--mode=folder", "--enable-opencode"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=test-project", "--enable-opencode"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 	w, err := norn.Load(root)

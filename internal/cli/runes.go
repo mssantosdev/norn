@@ -91,16 +91,22 @@ func runRunesInteractive() error {
 		hasWorkspace = false
 		scope = string(norn.RuneScopeGlobal)
 	}
-	group := huh.NewGroup(
-		huh.NewSelect[string]().Title("Action").Options(
-			huh.NewOption("Show config", "show"),
-			huh.NewOption("Resolve config origins", "resolve"),
-			huh.NewOption("Edit config", "edit"),
-		).Value(&action),
-		huh.NewSelect[string]().Title("Show").Options(runeShowOptions(hasWorkspace)...).Value(&view),
-		huh.NewSelect[string]().Title("Scope").Options(runeScopeOptions(hasWorkspace)...).Value(&scope),
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().Title("Action").Options(
+				huh.NewOption("Show config", "show"),
+				huh.NewOption("Resolve config origins", "resolve"),
+				huh.NewOption("Edit config", "edit"),
+			).Value(&action),
+		),
+		huh.NewGroup(
+			huh.NewSelect[string]().Title("Show").Options(runeShowOptions(hasWorkspace)...).Value(&view),
+		).WithHideFunc(func() bool { return action != "show" }),
+		huh.NewGroup(
+			huh.NewSelect[string]().Title("Scope").Options(runeScopeOptions(hasWorkspace)...).Value(&scope),
+		).WithHideFunc(func() bool { return action != "edit" }),
 	)
-	if err := huh.NewForm(group).Run(); err != nil {
+	if err := form.Run(); err != nil {
 		return err
 	}
 	if action == "show" {
@@ -247,9 +253,6 @@ func runRunesEditInteractive(root string, scope norn.RuneScope) error {
 	theme := scopeEnumValue(layer, "ui.theme")
 	planningMode := scopeEnumValue(layer, "planning.mode")
 	planningPath := scopeStringValue(layer, "planning.path")
-	planningBranch := scopeStringValue(layer, "planning.branch")
-	defaultSurface := scopeEnumValue(layer, "planning.default_surface")
-	overlayPath := scopeStringValue(layer, "overlay.path")
 	openCodeEnabled := scopeTriStateValue(layer, "opencode.enabled")
 	openCodeProvider := scopeStringValue(layer, "opencode.provider")
 	openCodeModel := scopeStringValue(layer, "opencode.model")
@@ -264,24 +267,31 @@ func runRunesEditInteractive(root string, scope norn.RuneScope) error {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().Title("Editing scope").Description(fmt.Sprintf("%s\nBlank values inherit from lower precedence layers or defaults.", norn.ScopeDisplayPath(root, scope))),
+		),
+		huh.NewGroup(
 			huh.NewInput().Title("Name").Description(fieldDescription(resolution, "name")).Value(&name),
 			huh.NewInput().Title("Preferred language").Description(fieldDescription(resolution, "preferences.language")).Value(&language),
 			huh.NewSelect[string]().Title("Verbosity").Description(fieldDescription(resolution, "preferences.verbosity")).Options(enumOptions("<inherit>", "", []string{"quiet", "normal", "loud"})...).Value(&verbosity),
 			huh.NewSelect[string]().Title("Theme").Description(fieldDescription(resolution, "ui.theme")).Options(enumOptions("<inherit>", "", []string{"tokyonight", "catppuccin", "dracula", "nord", "onedark"})...).Value(&theme),
-			huh.NewSelect[string]().Title("Planning mode").Description(fieldDescription(resolution, "planning.mode")).Options(enumOptions("<inherit>", "", []string{string(norn.PlanningModeFolder), string(norn.PlanningModeBranch)})...).Value(&planningMode),
+		),
+		huh.NewGroup(
+			huh.NewSelect[string]().Title("Planning mode").Description(fieldDescription(resolution, "planning.mode")).Options(enumOptions("<inherit>", "", []string{string(norn.PlanningModeFolder)})...).Value(&planningMode),
 			huh.NewInput().Title("Planning path").Description(fieldDescription(resolution, "planning.path")).Value(&planningPath),
-			huh.NewInput().Title("Planning branch").Description(fieldDescription(resolution, "planning.branch")).Value(&planningBranch),
-			huh.NewSelect[string]().Title("Default planning surface").Description(fieldDescription(resolution, "planning.default_surface")).Options(enumOptions("<inherit>", "", []string{"shared", "local", "both"})...).Value(&defaultSurface),
-			huh.NewInput().Title("Overlay path").Description(fieldDescription(resolution, "overlay.path")).Value(&overlayPath),
+		),
+		huh.NewGroup(
 			huh.NewSelect[string]().Title("OpenCode enabled").Description(fieldDescription(resolution, "opencode.enabled")).Options(triStateOptions()...).Value(&openCodeEnabled),
 			huh.NewInput().Title("OpenCode provider").Description(fieldDescription(resolution, "opencode.provider")).Value(&openCodeProvider),
 			huh.NewInput().Title("OpenCode model").Description(fieldDescription(resolution, "opencode.model")).Value(&openCodeModel),
 			huh.NewInput().Title("OpenCode agent").Description(fieldDescription(resolution, "opencode.agent")).Value(&openCodeAgent),
 			huh.NewInput().Title("OpenCode response language").Description(fieldDescription(resolution, "opencode.response_language")).Value(&responseLanguage),
 			huh.NewSelect[string]().Title("OpenCode drafting mode").Description(fieldDescription(resolution, "opencode.drafting_mode")).Options(enumOptions("<inherit>", "", []string{"ask", "auto"})...).Value(&draftingMode),
+		),
+		huh.NewGroup(
 			huh.NewInput().Title("Languages").Description(fieldDescription(resolution, "tooling.languages")+" Blank to inherit. Use comma-separated values.").Value(&languages),
 			huh.NewInput().Title("Tools").Description(fieldDescription(resolution, "tooling.tools")+" Blank to inherit. Use comma-separated values.").Value(&tools),
 			huh.NewInput().Title("Frameworks").Description(fieldDescription(resolution, "tooling.frameworks")+" Blank to inherit. Use comma-separated values.").Value(&frameworks),
+		),
+		huh.NewGroup(
 			huh.NewSelect[string]().Title("Hydra enabled").Description(fieldDescription(resolution, "hydra.enabled")).Options(triStateOptions()...).Value(&hydraEnabled),
 		),
 	)
@@ -295,9 +305,6 @@ func runRunesEditInteractive(root string, scope norn.RuneScope) error {
 	setString(updated, "ui.theme", theme)
 	setString(updated, "planning.mode", planningMode)
 	setString(updated, "planning.path", planningPath)
-	setString(updated, "planning.branch", planningBranch)
-	setString(updated, "planning.default_surface", defaultSurface)
-	setString(updated, "overlay.path", overlayPath)
 	setTriState(updated, "opencode.enabled", openCodeEnabled)
 	setString(updated, "opencode.provider", openCodeProvider)
 	setString(updated, "opencode.model", openCodeModel)
@@ -309,23 +316,6 @@ func runRunesEditInteractive(root string, scope norn.RuneScope) error {
 	setCSV(updated, "tooling.frameworks", frameworks)
 	setTriState(updated, "hydra.enabled", hydraEnabled)
 
-	previewData, err := norn.MarshalScopeMap(updated)
-	if err != nil {
-		return err
-	}
-	confirmed := true
-	confirm := huh.NewForm(
-		huh.NewGroup(
-			huh.NewNote().Title("Preview").Description(fmt.Sprintf("Target: %s\n\n%s", norn.ScopeDisplayPath(root, scope), string(previewData))),
-			huh.NewConfirm().Title("Write this scope file?").Value(&confirmed),
-		),
-	)
-	if err := confirm.Run(); err != nil {
-		return err
-	}
-	if !confirmed {
-		return fmt.Errorf("runes edit cancelled")
-	}
 	if err := norn.SaveScopeMap(root, scope, updated); err != nil {
 		return err
 	}

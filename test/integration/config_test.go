@@ -48,7 +48,7 @@ tooling:
 	if err := os.Chdir(workspace); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=config-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=config-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 
@@ -137,7 +137,7 @@ func TestLoadAppliesBuiltInDefaultsWithoutOptionalLayers(t *testing.T) {
 	if err := os.Chdir(workspace); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=defaults-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=defaults-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 
@@ -199,7 +199,7 @@ func TestRunesShowScopeAndResolve(t *testing.T) {
 	if err := os.Chdir(workspace); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=runes-show-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=runes-show-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 	minimalWorkspaceRunes := `name: runes-show-test
@@ -259,7 +259,7 @@ func TestRunesEditSetAndUnsetByScope(t *testing.T) {
 	if err := os.Chdir(workspace); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=runes-edit-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=runes-edit-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 

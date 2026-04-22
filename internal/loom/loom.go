@@ -1,9 +1,7 @@
 package loom
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/mssantosdev/norn/internal/norn"
@@ -17,11 +15,6 @@ func Ensure(root string, options norn.InitOptions) (string, error) {
 		path = ".norn"
 	}
 	fullPath := filepath.Join(root, path)
-	if options.Mode == norn.PlanningModeBranch {
-		if err := ensureBranchWorktree(root, path, options.Branch, options.CreateBranch); err != nil {
-			return "", err
-		}
-	}
 	if err := os.MkdirAll(filepath.Join(fullPath, "weaves"), 0o755); err != nil {
 		return "", err
 	}
@@ -37,31 +30,6 @@ func Ensure(root string, options norn.InitOptions) (string, error) {
 		}
 	}
 	return path, nil
-}
-
-func ensureBranchWorktree(root, path, branch string, create bool) error {
-	if branch == "" {
-		branch = "norn-planning"
-	}
-	if _, err := os.Stat(filepath.Join(root, ".git")); err != nil {
-		return fmt.Errorf("planning branch mode requires a git root")
-	}
-	if _, err := os.Stat(filepath.Join(root, path)); err == nil {
-		return nil
-	}
-	if create {
-		cmd := exec.Command("git", "branch", branch)
-		cmd.Dir = root
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("create planning branch: %s", string(output))
-		}
-	}
-	cmd := exec.Command("git", "worktree", "add", path, branch)
-	cmd.Dir = root
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("add planning worktree: %s", string(output))
-	}
-	return nil
 }
 
 func seedSkeleton(root string, options norn.InitOptions) error {

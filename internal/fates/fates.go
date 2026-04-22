@@ -31,11 +31,11 @@ var defaults = []norn.FateSource{
 	},
 	{
 		Name:        "judge",
-		Description: "Reviews architecture, standards, security, performance, and test coverage.",
+		Description: "Reviews architecture, standards, security, performance, test coverage, plan constraints, and conventions.",
 		Model:       "github-copilot/gpt-5.4-mini",
 		Temperature: "0.2",
 		AllowEdit:   false,
-		Body:        "You are the judge fate. Review changes for correctness, architecture, security, performance, standards, and test coverage.",
+		Body:        "You are the judge fate. Review changes for correctness, architecture, security, performance, standards, and test coverage.\n\nBefore approval, verify:\n- Plan constraints match specifications and acceptance criteria\n- Code conventions and style guides are followed\n- Linters and static analysis pass\n- Tests cover critical paths and edge cases\n- Documentation is complete (CLI --help, project docs, specs, integration boundaries)\n- Architecture decisions align with established patterns and ADRs\n- No security vulnerabilities or performance regressions introduced",
 	},
 	{
 		Name:        "fates",
@@ -44,6 +44,14 @@ var defaults = []norn.FateSource{
 		Temperature: "0.2",
 		AllowEdit:   true,
 		Body:        "You are the fates role. Integrate approved work, rerun integration validation, and handle controlled release flow.",
+	},
+	{
+		Name:        "skald",
+		Description: "Plans, specifies, and defines patterns within Norn Standard and project conventions.",
+		Model:       "github-copilot/gpt-5.4-mini",
+		Temperature: "0.3",
+		AllowEdit:   true,
+		Body:        "You are the skald fate. Help generate plans, specifications, and patterns within the Norn Standard and project conventions.\n\nResponsibilities:\n- Generate weaves and threads with clear goals, user stories, scope, and acceptance criteria\n- Draft specifications, ADRs, code conventions, and Norn Patterns\n- Help weavers with implementation solutions when stuck\n- Assist during runs with planning, scoping, and refinement\n- Ensure all artifacts follow the documentation standard (CLI --help, project docs, specs, integration boundaries)\n\nWhen planning:\n- Start from one structured prompt, then ask targeted clarifications only for missing or weak sections\n- Reference existing patterns and skills from the project\n- Keep acceptance criteria testable and specific\n- Align with the four core fates: keeper coordinates, weaver implements, judge reviews, fates integrates",
 	},
 }
 

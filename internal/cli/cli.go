@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -132,7 +131,7 @@ func runInit(args []string) error {
 			Mode:        detectWorkspaceMode("."),
 			Preferences: norn.PreferencesConfig{Language: "en", Verbosity: "normal"},
 			UI:          norn.UIConfig{Theme: opts.Theme},
-			Planning:    norn.PlanningConfig{Mode: opts.Mode, Path: opts.PlanningPath, Branch: opts.Branch, DefaultSurface: "shared"},
+			Planning:    norn.PlanningConfig{Mode: opts.Mode, Path: opts.PlanningPath, DefaultSurface: "shared"},
 			Overlay:     norn.OverlayConfig{Path: opts.LocalOverlayDir},
 			OpenCode:    norn.OpenCodeConfig{Enabled: opts.EnableOpenCode, Provider: "github-copilot", Model: opts.OpenCodeModel, Agent: opts.OpenCodeAgent, ResponseLanguage: "en", DraftingMode: "ask"},
 			Tooling:     norn.ToolingConfig{Languages: opts.Languages, Tools: opts.Tools, Frameworks: opts.Frameworks},
@@ -188,15 +187,19 @@ func parseInitArgs(args []string) (norn.InitOptions, error) {
 		case arg == "--enable-opencode":
 			opts.EnableOpenCode = true
 		case arg == "--create-branch":
-			opts.CreateBranch = true
+			return opts, fmt.Errorf("--create-branch is deprecated; planning branch mode has been removed")
 		case strings.HasPrefix(arg, "--mode="):
-			opts.Mode = norn.PlanningMode(strings.TrimPrefix(arg, "--mode="))
+			mode := strings.TrimPrefix(arg, "--mode=")
+			if mode == "branch" {
+				return opts, fmt.Errorf("--mode=branch is deprecated; planning branch mode has been removed")
+			}
+			opts.Mode = norn.PlanningMode(mode)
 		case strings.HasPrefix(arg, "--name="):
 			opts.Name = strings.TrimPrefix(arg, "--name=")
 		case strings.HasPrefix(arg, "--path="):
 			opts.PlanningPath = strings.TrimPrefix(arg, "--path=")
 		case strings.HasPrefix(arg, "--branch="):
-			opts.Branch = strings.TrimPrefix(arg, "--branch=")
+			return opts, fmt.Errorf("--branch is deprecated; planning branch mode has been removed")
 		case strings.HasPrefix(arg, "--theme="):
 			opts.Theme = strings.TrimPrefix(arg, "--theme=")
 		case strings.HasPrefix(arg, "--languages="):
@@ -222,9 +225,6 @@ func parseInitArgs(args []string) (norn.InitOptions, error) {
 
 func runInitForm(opts *norn.InitOptions) error {
 	projectName := opts.Name
-	planningMode := string(opts.Mode)
-	branchChoice := "__new__"
-	branchName := "norn-planning"
 	skeleton := opts.Skeleton
 	openCodeEnabled := opts.EnableOpenCode
 	openCodePrompt := opts.OpenCodePrompt
@@ -235,45 +235,56 @@ func runInitForm(opts *norn.InitOptions) error {
 	if skeleton == "" {
 		skeleton = "standard"
 	}
+
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().Title("Project name").Value(&projectName),
-			huh.NewSelect[string]().Title("Planning mode").Options(
-				huh.NewOption("Simple folder (recommended)", string(norn.PlanningModeFolder)),
-				huh.NewOption("Planning branch worktree", string(norn.PlanningModeBranch)),
-			).Value(&planningMode),
-			huh.NewSelect[string]().Title("Select existing branch or create new").Options(branchOptions()...).Value(&branchChoice),
-			huh.NewInput().Title("New planning branch name").Value(&branchName),
+		),
+		huh.NewGroup(
 			huh.NewSelect[string]().Title("Initial structure").Options(
 				huh.NewOption("Standard Norn structure", "standard"),
 				huh.NewOption("Empty", "empty"),
 				huh.NewOption("Guided", "guided"),
 				huh.NewOption("Help me with OpenCode", "opencode"),
 			).Value(&skeleton),
+		),
+		huh.NewGroup(
 			huh.NewConfirm().Title("Enable OpenCode integration?").Value(&openCodeEnabled),
-			huh.NewInput().Title("OpenCode prompt").Value(&openCodePrompt),
+		),
+		huh.NewGroup(
+			huh.NewInput().Title("OpenCode prompt").Description("Describe what you want help planning").Value(&openCodePrompt),
+		).WithHideFunc(func() bool { return !openCodeEnabled && skeleton != "opencode" }),
+		huh.NewGroup(
 			huh.NewSelect[string]().Title("Theme").Options(themeOptions()...).Value(&theme),
 		),
 	)
 	if err := form.Run(); err != nil {
 		return err
 	}
+
+	preview := fmt.Sprintf("Project: %s\nStructure: %s\nOpenCode: %t\nTheme: %s", projectName, skeleton, openCodeEnabled, theme)
+	confirmed := true
+	confirm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewNote().Title("Preview").Description(preview),
+			huh.NewConfirm().Title("Initialize workspace?").Value(&confirmed),
+		),
+	)
+	if err := confirm.Run(); err != nil {
+		return err
+	}
+	if !confirmed {
+		return fmt.Errorf("init cancelled")
+	}
+
 	opts.Name = projectName
-	opts.Mode = norn.PlanningMode(planningMode)
+	opts.Mode = norn.PlanningModeFolder
 	opts.Skeleton = skeleton
 	opts.EnableOpenCode = openCodeEnabled
 	if openCodeEnabled || skeleton == "opencode" {
 		opts.OpenCodePrompt = openCodePrompt
 	}
 	opts.Theme = theme
-	if opts.Mode == norn.PlanningModeBranch {
-		if branchChoice == "__new__" {
-			opts.Branch = branchName
-			opts.CreateBranch = true
-		} else {
-			opts.Branch = branchChoice
-		}
-	}
 	return nil
 }
 
@@ -389,14 +400,12 @@ func runFatesAddInteractive(w norn.Workspace) error {
 	body := ""
 	allowEdit := false
 	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().Title("Name").Value(&name),
-			huh.NewInput().Title("Description").Value(&description),
-			huh.NewInput().Title("Model").Value(&model),
-			huh.NewInput().Title("Temperature").Value(&temperature),
-			huh.NewText().Title("Body").Description("Agent instructions").Value(&body),
-			huh.NewConfirm().Title("Allow edit?").Value(&allowEdit),
-		),
+		huh.NewGroup(huh.NewInput().Title("Name").Value(&name)),
+		huh.NewGroup(huh.NewInput().Title("Description").Value(&description)),
+		huh.NewGroup(huh.NewInput().Title("Model").Value(&model)),
+		huh.NewGroup(huh.NewInput().Title("Temperature").Value(&temperature)),
+		huh.NewGroup(huh.NewText().Title("Body").Description("Agent instructions").Value(&body)),
+		huh.NewGroup(huh.NewConfirm().Title("Allow edit?").Value(&allowEdit)),
 	)
 	if err := form.Run(); err != nil {
 		return err
@@ -456,13 +465,11 @@ func runFatesEditInteractive(w norn.Workspace, name string) error {
 	body := item.Body
 	allowEdit := item.AllowEdit
 	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().Title("Description").Value(&description),
-			huh.NewInput().Title("Model").Value(&model),
-			huh.NewInput().Title("Temperature").Value(&temperature),
-			huh.NewText().Title("Body").Description("Agent instructions").Value(&body),
-			huh.NewConfirm().Title("Allow edit?").Value(&allowEdit),
-		),
+		huh.NewGroup(huh.NewInput().Title("Description").Value(&description)),
+		huh.NewGroup(huh.NewInput().Title("Model").Value(&model)),
+		huh.NewGroup(huh.NewInput().Title("Temperature").Value(&temperature)),
+		huh.NewGroup(huh.NewText().Title("Body").Description("Agent instructions").Value(&body)),
+		huh.NewGroup(huh.NewConfirm().Title("Allow edit?").Value(&allowEdit)),
 	)
 	if err := form.Run(); err != nil {
 		return err
@@ -474,21 +481,6 @@ func runFatesEditInteractive(w norn.Workspace, name string) error {
 		Temperature: temperature,
 		Body:        body,
 		AllowEdit:   allowEdit,
-	}
-	preview := fmt.Sprintf("Name: %s\nDescription: %s\nModel: %s\nTemperature: %s\nAllowEdit: %t\n\n%s",
-		updated.Name, updated.Description, updated.Model, updated.Temperature, updated.AllowEdit, updated.Body)
-	confirmed := true
-	confirm := huh.NewForm(
-		huh.NewGroup(
-			huh.NewNote().Title("Preview").Description(preview),
-			huh.NewConfirm().Title("Save changes?").Value(&confirmed),
-		),
-	)
-	if err := confirm.Run(); err != nil {
-		return err
-	}
-	if !confirmed {
-		return fmt.Errorf("edit cancelled")
 	}
 	if err := fates.Save(norn.FatesRoot(w), updated); err != nil {
 		return err
@@ -593,30 +585,14 @@ func runDocEditInteractive(kind, root, id string) error {
 	summary := doc.Summary
 	body := doc.Body
 	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().Title("Title").Value(&title),
-			huh.NewInput().Title("Summary").Value(&summary),
-			huh.NewText().Title("Body").Value(&body),
-		),
+		huh.NewGroup(huh.NewInput().Title("Title").Value(&title)),
+		huh.NewGroup(huh.NewInput().Title("Summary").Value(&summary)),
+		huh.NewGroup(huh.NewText().Title("Body").Value(&body)),
 	)
 	if err := form.Run(); err != nil {
 		return err
 	}
 	updated := norn.Document{ID: id, Title: title, Summary: summary, Body: body}
-	preview := fmt.Sprintf("ID: %s\nTitle: %s\nSummary: %s\n\n%s", updated.ID, updated.Title, updated.Summary, updated.Body)
-	confirmed := true
-	confirm := huh.NewForm(
-		huh.NewGroup(
-			huh.NewNote().Title("Preview").Description(preview),
-			huh.NewConfirm().Title("Save changes?").Value(&confirmed),
-		),
-	)
-	if err := confirm.Run(); err != nil {
-		return err
-	}
-	if !confirmed {
-		return fmt.Errorf("edit cancelled")
-	}
 	return saveDoc(kind, root, updated)
 }
 
@@ -731,19 +707,19 @@ func runToolsEditInteractive(w norn.Workspace, root, id string) error {
 	risk := item.Risk
 	rolesStr := strings.Join(item.Roles, ", ")
 	form := huh.NewForm(
+		huh.NewGroup(huh.NewInput().Title("Title").Value(&title)),
+		huh.NewGroup(huh.NewInput().Title("Description").Value(&description)),
+		huh.NewGroup(huh.NewInput().Title("Category").Value(&category)),
+		huh.NewGroup(huh.NewInput().Title("Command").Value(&command)),
+		huh.NewGroup(huh.NewInput().Title("Pattern").Description("Leave empty to derive from command").Value(&pattern)),
 		huh.NewGroup(
-			huh.NewInput().Title("Title").Value(&title),
-			huh.NewInput().Title("Description").Value(&description),
-			huh.NewInput().Title("Category").Value(&category),
-			huh.NewInput().Title("Command").Value(&command),
-			huh.NewInput().Title("Pattern").Description("Leave empty to derive from command").Value(&pattern),
 			huh.NewSelect[string]().Title("Risk").Options(
 				huh.NewOption("Low", "low"),
 				huh.NewOption("Medium", "medium"),
 				huh.NewOption("High", "high"),
 			).Value(&risk),
-			huh.NewInput().Title("Roles").Description("Comma-separated list of roles").Value(&rolesStr),
 		),
+		huh.NewGroup(huh.NewInput().Title("Roles").Description("Comma-separated list of roles").Value(&rolesStr)),
 	)
 	if err := form.Run(); err != nil {
 		return err
@@ -761,21 +737,6 @@ func runToolsEditInteractive(w norn.Workspace, root, id string) error {
 		Pattern:     pattern,
 		Risk:        risk,
 		Roles:       roles,
-	}
-	preview := fmt.Sprintf("ID: %s\nTitle: %s\nCategory: %s\nCommand: %s\nPattern: %s\nRisk: %s\nRoles: %s",
-		updated.ID, updated.Title, updated.Category, updated.Command, updated.Pattern, updated.Risk, strings.Join(updated.Roles, ", "))
-	confirmed := true
-	confirm := huh.NewForm(
-		huh.NewGroup(
-			huh.NewNote().Title("Preview").Description(preview),
-			huh.NewConfirm().Title("Save changes?").Value(&confirmed),
-		),
-	)
-	if err := confirm.Run(); err != nil {
-		return err
-	}
-	if !confirmed {
-		return fmt.Errorf("edit cancelled")
 	}
 	if err := toolstore.Save(root, updated); err != nil {
 		return err
@@ -845,24 +806,20 @@ func runWeaves(args []string) error {
 		return nil
 	}
 	if len(args) >= 3 && args[0] == "add" {
-		surface, remaining, err := parseSurfaceArgs(args[1:])
-		if err != nil {
-			return err
+		if len(args) < 3 {
+			return fmt.Errorf("usage: norn weaves add <title> <summary>")
 		}
-		if len(remaining) < 2 {
-			return fmt.Errorf("usage: norn weaves add [--surface=shared|local|both] <title> <summary>")
-		}
-		title := remaining[0]
-		summary := strings.Join(remaining[1:], " ")
+		title := args[1]
+		summary := strings.Join(args[2:], " ")
 		doc := norn.Document{ID: slug(title), Title: title, Summary: summary, Body: weaves.DefaultBody(title, summary)}
-		return saveWeaveToSurface(w, surface, doc)
+		return weaves.SaveToSurface(norn.SharedPlanningRoot(w), doc)
 	}
 	if len(args) == 1 && args[0] == "add" {
-		surface, doc, err := promptWeaveCreation(w)
+		doc, err := promptWeaveCreation(w)
 		if err != nil {
 			return err
 		}
-		return saveWeaveToSurface(w, surface, doc)
+		return weaves.SaveToSurface(norn.SharedPlanningRoot(w), doc)
 	}
 	if len(args) == 2 && args[0] == "show" {
 		doc, err := weaves.LoadMerged(root, norn.OverlayPlanningRoot(w), args[1])
@@ -903,25 +860,21 @@ func runThreads(args []string) error {
 		return nil
 	}
 	if len(args) >= 4 && args[0] == "add" {
-		surface, remaining, err := parseSurfaceArgs(args[1:])
-		if err != nil {
-			return err
+		if len(args) < 4 {
+			return fmt.Errorf("usage: norn threads add <weave-id> <title> <summary>")
 		}
-		if len(remaining) < 3 {
-			return fmt.Errorf("usage: norn threads add [--surface=shared|local|both] <weave-id> <title> <summary>")
-		}
-		weaveID := remaining[0]
-		title := remaining[1]
-		summary := strings.Join(remaining[2:], " ")
+		weaveID := args[1]
+		title := args[2]
+		summary := strings.Join(args[3:], " ")
 		doc := norn.Document{ID: slug(title), Title: title, Summary: summary, Body: threads.DefaultBody(summary)}
-		return saveThreadToSurface(w, surface, weaveID, doc)
+		return threads.SaveToSurface(norn.SharedPlanningRoot(w), weaveID, doc)
 	}
 	if len(args) == 1 && args[0] == "add" {
-		surface, weaveID, doc, err := promptThreadCreation(w)
+		weaveID, doc, err := promptThreadCreation(w)
 		if err != nil {
 			return err
 		}
-		return saveThreadToSurface(w, surface, weaveID, doc)
+		return threads.SaveToSurface(norn.SharedPlanningRoot(w), weaveID, doc)
 	}
 	if len(args) == 3 && args[0] == "show" {
 		doc, err := threads.LoadMerged(root, norn.OverlayPlanningRoot(w), args[1], args[2])
@@ -1299,33 +1252,6 @@ func detectWorkspaceMode(root string) norn.WorkspaceMode {
 	return norn.WorkspaceModeRepo
 }
 
-func branchOptions() []huh.Option[string] {
-	options := []huh.Option[string]{huh.NewOption("Create new branch", "__new__")}
-	for _, branch := range gitBranches() {
-		options = append(options, huh.NewOption(branch, branch))
-	}
-	return options
-}
-
-func gitBranches() []string {
-	if !exists(".git/refs/heads") {
-		return nil
-	}
-	var out []string
-	_ = filepath.Walk(".git/refs/heads", func(path string, info os.FileInfo, err error) error {
-		if err != nil || info == nil || info.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(".git/refs/heads", path)
-		if err == nil {
-			out = append(out, filepath.ToSlash(rel))
-		}
-		return nil
-	})
-	sort.Strings(out)
-	return out
-}
-
 func themeOptions() []huh.Option[string] {
 	return []huh.Option[string]{
 		huh.NewOption("Tokyo Night", "tokyonight"),
@@ -1489,8 +1415,7 @@ func saveThreadToSurface(w norn.Workspace, surface, weaveID string, doc norn.Doc
 	}
 }
 
-func promptWeaveCreation(w norn.Workspace) (string, norn.Document, error) {
-	surface := "shared"
+func promptWeaveCreation(w norn.Workspace) (norn.Document, error) {
 	title := ""
 	id := ""
 	summary := ""
@@ -1499,54 +1424,46 @@ func promptWeaveCreation(w norn.Workspace) (string, norn.Document, error) {
 	scope := ""
 	acceptance := ""
 	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().Title("Planning surface").Options(
-				huh.NewOption("Shared (.norn/)", "shared"),
-				huh.NewOption("Local (.norn/)", "local"),
-				huh.NewOption("Both", "both"),
-			).Value(&surface),
-			huh.NewInput().Title("Title").Value(&title),
-			huh.NewInput().Title("ID").Description("Leave empty to derive from title").Value(&id),
-			huh.NewText().Title("Summary").Value(&summary),
-			huh.NewText().Title("Goal").Value(&goal),
-			huh.NewText().Title("User stories").Description("One or more user stories, one per line").Value(&userStories),
-			huh.NewText().Title("Scope").Description("Scope items, one per line").Value(&scope),
-			huh.NewText().Title("Acceptance").Description("Acceptance items, one per line").Value(&acceptance),
-		),
+		huh.NewGroup(huh.NewInput().Title("Title").Value(&title)),
+		huh.NewGroup(huh.NewInput().Title("ID").Description("Leave empty to derive from title").Value(&id)),
+		huh.NewGroup(huh.NewText().Title("Summary").Value(&summary)),
+		huh.NewGroup(huh.NewText().Title("Goal").Value(&goal)),
+		huh.NewGroup(huh.NewText().Title("User stories").Description("One or more user stories, one per line").Value(&userStories)),
+		huh.NewGroup(huh.NewText().Title("Scope").Description("Scope items, one per line").Value(&scope)),
+		huh.NewGroup(huh.NewText().Title("Acceptance").Description("Acceptance items, one per line").Value(&acceptance)),
 	)
 	if err := form.Run(); err != nil {
-		return "", norn.Document{}, err
+		return norn.Document{}, err
 	}
 	if id == "" {
 		id = slug(title)
 	}
 	body := buildArtifactBody(goal, "User Stories", userStories, "Scope", scope, "Acceptance", acceptance)
-	preview := fmt.Sprintf("Surface: %s\nID: %s\nShared path: %s\nLocal path: %s\n\n%s", surface, id, weaves.ReadmePath(norn.SharedPlanningRoot(w), id), weaves.ReadmePath(norn.OverlayPlanningRoot(w), id), body)
+	preview := fmt.Sprintf("ID: %s\nPath: %s\n\n%s", id, weaves.ReadmePath(norn.SharedPlanningRoot(w), id), body)
 	confirmed := true
 	confirm := huh.NewForm(huh.NewGroup(huh.NewNote().Title("Preview").Description(preview), huh.NewConfirm().Title("Create weave with this content?").Value(&confirmed)))
 	if err := confirm.Run(); err != nil {
-		return "", norn.Document{}, err
+		return norn.Document{}, err
 	}
 	if !confirmed {
-		return "", norn.Document{}, fmt.Errorf("weave creation cancelled")
+		return norn.Document{}, fmt.Errorf("weave creation cancelled")
 	}
-	return surface, norn.Document{ID: id, Title: title, Summary: summary, Body: body}, nil
+	return norn.Document{ID: id, Title: title, Summary: summary, Body: body}, nil
 }
 
-func promptThreadCreation(w norn.Workspace) (string, string, norn.Document, error) {
+func promptThreadCreation(w norn.Workspace) (string, norn.Document, error) {
 	items, err := weaves.ListMerged(norn.SharedPlanningRoot(w), norn.OverlayPlanningRoot(w))
 	if err != nil {
-		return "", "", norn.Document{}, err
+		return "", norn.Document{}, err
 	}
 	if len(items) == 0 {
-		return "", "", norn.Document{}, fmt.Errorf("no weaves available; create a weave first")
+		return "", norn.Document{}, fmt.Errorf("no weaves available; create a weave first")
 	}
 	options := make([]huh.Option[string], 0, len(items))
 	selectedWeave := items[0].ID
 	for _, item := range items {
 		options = append(options, huh.NewOption(fmt.Sprintf("%s (%s)", item.Title, item.ID), item.ID))
 	}
-	surface := "shared"
 	title := ""
 	id := ""
 	summary := ""
@@ -1555,39 +1472,32 @@ func promptThreadCreation(w norn.Workspace) (string, string, norn.Document, erro
 	strands := ""
 	acceptance := ""
 	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().Title("Planning surface").Options(
-				huh.NewOption("Shared (.norn/)", "shared"),
-				huh.NewOption("Local (.norn/)", "local"),
-				huh.NewOption("Both", "both"),
-			).Value(&surface),
-			huh.NewSelect[string]().Title("Parent weave").Options(options...).Value(&selectedWeave),
-			huh.NewInput().Title("Title").Value(&title),
-			huh.NewInput().Title("ID").Description("Leave empty to derive from title").Value(&id),
-			huh.NewText().Title("Summary").Value(&summary),
-			huh.NewText().Title("Goal").Value(&goal),
-			huh.NewText().Title("User story").Value(&userStory),
-			huh.NewText().Title("Strands").Description("One strand per line").Value(&strands),
-			huh.NewText().Title("Acceptance").Description("One item per line").Value(&acceptance),
-		),
+		huh.NewGroup(huh.NewSelect[string]().Title("Parent weave").Options(options...).Value(&selectedWeave)),
+		huh.NewGroup(huh.NewInput().Title("Title").Value(&title)),
+		huh.NewGroup(huh.NewInput().Title("ID").Description("Leave empty to derive from title").Value(&id)),
+		huh.NewGroup(huh.NewText().Title("Summary").Value(&summary)),
+		huh.NewGroup(huh.NewText().Title("Goal").Value(&goal)),
+		huh.NewGroup(huh.NewText().Title("User story").Value(&userStory)),
+		huh.NewGroup(huh.NewText().Title("Strands").Description("One strand per line").Value(&strands)),
+		huh.NewGroup(huh.NewText().Title("Acceptance").Description("One item per line").Value(&acceptance)),
 	)
 	if err := form.Run(); err != nil {
-		return "", "", norn.Document{}, err
+		return "", norn.Document{}, err
 	}
 	if id == "" {
 		id = slug(title)
 	}
 	body := buildArtifactBody(goal, "User Story", userStory, "Strands", strands, "Acceptance", acceptance)
-	preview := fmt.Sprintf("Surface: %s\nWeave: %s\nID: %s\nShared path: %s\nLocal path: %s\n\n%s", surface, selectedWeave, id, threads.Path(norn.SharedPlanningRoot(w), selectedWeave, id), threads.Path(norn.OverlayPlanningRoot(w), selectedWeave, id), body)
+	preview := fmt.Sprintf("Weave: %s\nID: %s\nPath: %s\n\n%s", selectedWeave, id, threads.Path(norn.SharedPlanningRoot(w), selectedWeave, id), body)
 	confirmed := true
 	confirm := huh.NewForm(huh.NewGroup(huh.NewNote().Title("Preview").Description(preview), huh.NewConfirm().Title("Create thread with this content?").Value(&confirmed)))
 	if err := confirm.Run(); err != nil {
-		return "", "", norn.Document{}, err
+		return "", norn.Document{}, err
 	}
 	if !confirmed {
-		return "", "", norn.Document{}, fmt.Errorf("thread creation cancelled")
+		return "", norn.Document{}, fmt.Errorf("thread creation cancelled")
 	}
-	return surface, selectedWeave, norn.Document{ID: id, Title: title, Summary: summary, Body: body}, nil
+	return selectedWeave, norn.Document{ID: id, Title: title, Summary: summary, Body: body}, nil
 }
 
 func buildArtifactBody(goal string, sections ...string) string {
@@ -1819,7 +1729,7 @@ func weavesHelp() HelpTopic {
 	return HelpTopic{
 		Name:        "norn weaves",
 		Description: "Manage weave planning artifacts",
-		Usage:       "norn weaves <command> [flags]",
+		Usage:       "norn weaves <command>",
 		Commands: []CommandHelp{
 			{
 				Name:        "list",
@@ -1829,10 +1739,7 @@ func weavesHelp() HelpTopic {
 			{
 				Name:        "add",
 				Description: "Add a new weave",
-				Usage:       "norn weaves add [--surface=shared|local|both] <title> <summary>",
-				Flags: []FlagHelp{
-					{Name: "--surface=shared|local|both", Description: "Planning surface for writes"},
-				},
+				Usage:       "norn weaves add <title> <summary>",
 				Examples: []string{
 					"norn weaves add \"API Contract\" \"Document API expectations\"",
 				},
@@ -1855,7 +1762,7 @@ func threadsHelp() HelpTopic {
 	return HelpTopic{
 		Name:        "norn threads",
 		Description: "Manage thread planning artifacts",
-		Usage:       "norn threads <command> [flags]",
+		Usage:       "norn threads <command>",
 		Commands: []CommandHelp{
 			{
 				Name:        "list",
@@ -1865,10 +1772,7 @@ func threadsHelp() HelpTopic {
 			{
 				Name:        "add",
 				Description: "Add a new thread",
-				Usage:       "norn threads add [--surface=shared|local|both] <weave-id> <title> <summary>",
-				Flags: []FlagHelp{
-					{Name: "--surface=shared|local|both", Description: "Planning surface for writes"},
-				},
+				Usage:       "norn threads add <weave-id> <title> <summary>",
 				Examples: []string{
 					"norn threads add my-weave \"Add CLI\" \"Implement the command\"",
 				},
@@ -1900,10 +1804,7 @@ func initHelp() HelpTopic {
 				Flags: []FlagHelp{
 					{Name: "--no-interactive", Description: "Run in non-interactive mode"},
 					{Name: "--enable-opencode", Description: "Enable OpenCode integration"},
-					{Name: "--mode=folder|branch", Description: "Planning mode (default: folder)"},
 					{Name: "--name=<name>", Description: "Project name"},
-					{Name: "--branch=<branch>", Description: "Planning branch name"},
-					{Name: "--create-branch", Description: "Create the planning branch if it doesn't exist"},
 					{Name: "--theme=<theme>", Description: "UI theme"},
 					{Name: "--languages=<list>", Description: "Comma-separated language list"},
 					{Name: "--tools=<list>", Description: "Comma-separated tool list"},
@@ -1914,8 +1815,7 @@ func initHelp() HelpTopic {
 				},
 				Examples: []string{
 					"norn init",
-					"norn init --no-interactive --name=my-project --mode=folder --enable-opencode",
-					"norn init --no-interactive --mode=branch --branch=loom --create-branch",
+					"norn init --no-interactive --name=my-project --enable-opencode",
 				},
 			},
 		},

@@ -8,12 +8,6 @@ Interactive mode:
 norn init
 ```
 
-Non-interactive folder mode:
-
-```bash
-norn init --no-interactive --name=my-project --mode=folder --enable-opencode
-```
-
 Non-interactive:
 
 ```bash

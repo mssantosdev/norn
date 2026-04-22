@@ -16,7 +16,7 @@ func TestWarpsCRUD(t *testing.T) {
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=warps-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=warps-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 	if err := cli.Run([]string{"warps", "add", "--status=active", "--owner=marcus", "--root=./worktrees/api", "--branch=feature/api", "--weaves=planning-surface", "--threads=add-weaves-cli", "API Warp", "Runtime coordination for API lane"}); err != nil {
@@ -53,7 +53,7 @@ func TestWarpRuntimeView(t *testing.T) {
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=warp-runtime-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=warp-runtime-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 	if err := cli.Run([]string{"warps", "add", "--status=active", "--owner=marcus", "API Warp", "Runtime coordination for API lane"}); err != nil {
@@ -83,7 +83,7 @@ func TestWarpAssignmentShowAndRemove(t *testing.T) {
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=warp-assignment-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=warp-assignment-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 	if err := cli.Run([]string{"warps", "add", "API Warp", "Runtime coordination for API lane"}); err != nil {

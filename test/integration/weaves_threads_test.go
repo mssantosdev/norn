@@ -16,7 +16,7 @@ func TestWeavesCRUD(t *testing.T) {
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=weaves-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=weaves-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 	if err := cli.Run([]string{"weaves", "add", "Planning Surface", "Define planning artifacts"}); err != nil {
@@ -48,7 +48,7 @@ func TestThreadsCRUD(t *testing.T) {
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=threads-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=threads-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 	if err := cli.Run([]string{"weaves", "add", "Planning Surface", "Define planning artifacts"}); err != nil {
@@ -79,7 +79,7 @@ func TestReadThread(t *testing.T) {
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=read-thread-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=read-thread-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 	if err := cli.Run([]string{"weaves", "add", "Planning Surface", "Test weave"}); err != nil {
@@ -101,45 +101,20 @@ func TestReadThread(t *testing.T) {
 	}
 }
 
-func TestWeavesAddToLocalSurface(t *testing.T) {
+func TestWeavesAddSimple(t *testing.T) {
 	root := t.TempDir()
 	wd, _ := os.Getwd()
 	defer func() { _ = os.Chdir(wd) }()
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=local-weave-test", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=simple-weave-test"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
-	if err := cli.Run([]string{"weaves", "add", "--surface=local", "Local Planning", "Local only weave"}); err != nil {
-		t.Fatalf("weaves add local failed: %v", err)
+	if err := cli.Run([]string{"weaves", "add", "Simple Planning", "Simple weave"}); err != nil {
+		t.Fatalf("weaves add failed: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, ".norn", "weaves", "local-planning", "README.md")); err != nil {
-		t.Fatalf("expected local weave file: %v", err)
-	}
-}
-
-func TestThreadsAddToBothSurfaces(t *testing.T) {
-	root := t.TempDir()
-	wd, _ := os.Getwd()
-	defer func() { _ = os.Chdir(wd) }()
-	if err := os.Chdir(root); err != nil {
-		t.Fatal(err)
-	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=both-surface-test", "--mode=folder"}); err != nil {
-		t.Fatalf("init failed: %v", err)
-	}
-	if err := cli.Run([]string{"weaves", "add", "--surface=both", "Planning Surface", "Shared and local weave"}); err != nil {
-		t.Fatalf("weaves add both failed: %v", err)
-	}
-	if err := cli.Run([]string{"threads", "add", "--surface=both", "planning-surface", "Add Weaves CLI", "Implement both-surface thread"}); err != nil {
-		t.Fatalf("threads add both failed: %v", err)
-	}
-	for _, path := range []string{
-		filepath.Join(root, ".norn", "weaves", "planning-surface", "threads", "add-weaves-cli.md"),
-	} {
-		if _, err := os.Stat(path); err != nil {
-			t.Fatalf("expected thread file at %s: %v", path, err)
-		}
+	if _, err := os.Stat(filepath.Join(root, ".norn", "weaves", "simple-planning", "README.md")); err != nil {
+		t.Fatalf("expected weave file: %v", err)
 	}
 }
