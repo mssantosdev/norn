@@ -2,6 +2,7 @@ package detect
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -22,14 +23,73 @@ func Scan(root string) (norn.Detection, error) {
 	if _, err := os.Stat(filepath.Join(root, ".hydra.yaml")); err == nil {
 		return scanHydra(root)
 	}
-	return scanSingle(root)
+	return scanWorkspace(root)
 }
 
-func scanSingle(root string) (norn.Detection, error) {
+func scanWorkspace(root string) (norn.Detection, error) {
 	detection := norn.Detection{}
+	// Always check root first
 	applySignals(root, &detection)
+	if isProjectRoot(root) {
+		detection.Locations = append(detection.Locations, root)
+	}
+
+	// Walk subdirectories to find nested projects
+	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || !d.IsDir() || path == root {
+			return nil
+		}
+		// Skip hidden dirs and common non-project dirs
+		name := filepath.Base(path)
+		if strings.HasPrefix(name, ".") || name == "node_modules" || name == "vendor" || name == "target" || name == "dist" || name == "build" {
+			return filepath.SkipDir
+		}
+		if isProjectRoot(path) {
+			applySignals(path, &detection)
+			detection.Locations = append(detection.Locations, path)
+			// Don't recurse into project roots
+			return filepath.SkipDir
+		}
+		return nil
+	})
+
 	finalize(&detection)
 	return detection, nil
+}
+
+func isProjectRoot(path string) bool {
+	signals := []string{
+		"go.mod",
+		"package.json",
+		"bun.lock",
+		"bun.lockb",
+		"bunfig.toml",
+		"pom.xml",
+		"build.gradle",
+		"build.gradle.kts",
+		"Cargo.toml",
+		"*.sln",
+		"Directory.Build.props",
+		"global.json",
+		"settings.gradle",
+		"settings.gradle.kts",
+		"pyproject.toml",
+		"requirements.txt",
+		"Gemfile",
+		"composer.json",
+	}
+	for _, signal := range signals {
+		if signal == "*.sln" {
+			if hasGlob(path, signal) {
+				return true
+			}
+		} else {
+			if _, err := os.Stat(filepath.Join(path, signal)); err == nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func scanHydra(root string) (norn.Detection, error) {

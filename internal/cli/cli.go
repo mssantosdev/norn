@@ -19,6 +19,7 @@ import (
 	"github.com/mssantosdev/norn/internal/skills"
 	"github.com/mssantosdev/norn/internal/threads"
 	toolstore "github.com/mssantosdev/norn/internal/tools"
+	"github.com/mssantosdev/norn/internal/ui/components"
 	"github.com/mssantosdev/norn/internal/ui/logger"
 	"github.com/mssantosdev/norn/internal/ui/styles"
 	"github.com/mssantosdev/norn/internal/weaves"
@@ -155,7 +156,7 @@ func runInit(args []string) error {
 		return err
 	}
 	if workspace.Runes.OpenCode.Enabled && strings.TrimSpace(opts.OpenCodePrompt) != "" {
-		assist, err := opencode.AssistInit(workspace.Runes.OpenCode, opts.OpenCodePrompt)
+		assist, err := opencode.AssistInit(opts.OpenCodePrompt)
 		if err != nil {
 			logger.Warn("opencode assistance failed", "error", err)
 		} else {
@@ -223,6 +224,14 @@ func runInitForm(opts *norn.InitOptions) error {
 	}
 
 	getAIHelp := false
+	openCodeModel := opts.OpenCodeModel
+	if openCodeModel == "" {
+		openCodeModel = "github-copilot/gpt-5.4-mini"
+	}
+	openCodeAgent := opts.OpenCodeAgent
+	if openCodeAgent == "" {
+		openCodeAgent = "build"
+	}
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -272,6 +281,13 @@ func runInitForm(opts *norn.InitOptions) error {
 		return err
 	}
 
+	// OpenCode configuration validation
+	if openCodeEnabled {
+		if err := validateOpenCodeConfig(&openCodeEnabled, &openCodeModel, &openCodeAgent); err != nil {
+			return err
+		}
+	}
+
 	var previewFiles string
 	if skeleton == "standard" {
 		previewFiles = "\n\nFiles to create:\n[NEW] .norn/README.md\n[NEW] .norn/constitution.md\n[NEW] .norn/weaves/\n[NEW] .norn/patterns/\n[NEW] .norn/skills/\n[NEW] .norn/fates/keeper.yaml\n[NEW] .norn/fates/weaver.yaml\n[NEW] .norn/fates/judge.yaml\n[NEW] .norn/fates/fates.yaml\n[NEW] .norn/fates/skald.yaml"
@@ -303,6 +319,151 @@ func runInitForm(opts *norn.InitOptions) error {
 	return nil
 }
 
+func validateOpenCodeConfig(enabled *bool, model *string, agent *string) error {
+	// Check CLI availability
+	if err := opencode.Validate(); err != nil {
+		logger.Warn("opencode CLI not found", "error", err)
+		fmt.Println("\n✗ opencode CLI not found in PATH")
+		fmt.Println("\nTo install:")
+		fmt.Println("  npm install -g @anthropic-ai/opencode")
+		fmt.Println("  # or")
+		fmt.Println("  brew install opencode")
+
+		continueWithout := true
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title("Continue without OpenCode?").
+					Description("You can enable OpenCode later by running 'norn runes edit --set opencode.enabled=true'").
+					Value(&continueWithout),
+			),
+		)
+		if err := form.Run(); err != nil {
+			return err
+		}
+		if !continueWithout {
+			return fmt.Errorf("init cancelled — install opencode CLI and try again")
+		}
+		*enabled = false
+		return nil
+	}
+
+	// Parse configured providers
+	providers, err := opencode.GetProviders()
+	if err != nil {
+		logger.Warn("no opencode providers configured", "error", err)
+		fmt.Println("\n✗ No OpenCode providers configured")
+		fmt.Println("\nTo configure:")
+		fmt.Println("  opencode providers login github-copilot")
+		fmt.Println("  # or")
+		fmt.Println("  opencode providers login <provider>")
+
+		continueWithout := true
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title("Continue without OpenCode?").
+					Description("You can enable OpenCode later after configuring providers").
+					Value(&continueWithout),
+			),
+		)
+		if err := form.Run(); err != nil {
+			return err
+		}
+		if !continueWithout {
+			return fmt.Errorf("init cancelled — configure an OpenCode provider and try again")
+		}
+		*enabled = false
+		return nil
+	}
+
+	// Let user select provider
+	providerOptions := make([]huh.Option[string], 0, len(providers))
+	selectedProvider := providers[0].Name
+	for _, p := range providers {
+		label := fmt.Sprintf("%s (%s)", p.Name, p.Type)
+		providerOptions = append(providerOptions, huh.NewOption(label, p.Name))
+	}
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Select OpenCode provider").
+				Description("Choose which AI provider to use").
+				Options(providerOptions...).
+				Value(&selectedProvider),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return err
+	}
+
+	// Query models for selected provider
+	models, err := opencode.GetModels(selectedProvider)
+	if err != nil {
+		logger.Warn("failed to list models", "provider", selectedProvider, "error", err)
+		fmt.Printf("\n⚠ Could not list models for %s\n", selectedProvider)
+		fmt.Println("Using default model.")
+	} else if len(models) > 0 {
+		modelOptions := make([]huh.Option[string], 0, len(models))
+		for _, m := range models {
+			modelOptions = append(modelOptions, huh.NewOption(m, m))
+		}
+
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Select model").
+					Description(fmt.Sprintf("Available models for %s", selectedProvider)).
+					Options(modelOptions...).
+					Value(model),
+			),
+		)
+		if err := form.Run(); err != nil {
+			return err
+		}
+	}
+
+	// Select agent
+	agentOptions := []huh.Option[string]{
+		huh.NewOption("build — General build agent", "build"),
+		huh.NewOption("skald — Planning and specification", "skald"),
+		huh.NewOption("custom — Enter custom agent name", "custom"),
+	}
+	selectedAgent := *agent
+	form = huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Select agent").
+				Description("Which agent personality to use for AI assistance").
+				Options(agentOptions...).
+				Value(&selectedAgent),
+		),
+	)
+	if err := form.Run(); err != nil {
+		return err
+	}
+	if selectedAgent == "custom" {
+		customAgent := ""
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Agent name").
+					Description("Enter the custom agent name").
+					Value(&customAgent),
+			),
+		)
+		if err := form.Run(); err != nil {
+			return err
+		}
+		*agent = customAgent
+	} else {
+		*agent = selectedAgent
+	}
+
+	return nil
+}
+
 func runStatus() error {
 	w, err := norn.Load(".")
 	if err != nil {
@@ -327,7 +488,13 @@ func runStatus() error {
 }
 
 func runDetect() error {
-	detected, err := detect.Scan(".")
+	var detected norn.Detection
+	var err error
+
+	components.RunWithSpinner("Scanning workspace for projects...", func() {
+		detected, err = detect.Scan(".")
+	})
+
 	if err != nil {
 		return err
 	}
@@ -1275,7 +1442,12 @@ func runExport(args []string) error {
 		opts.Skills = true
 	}
 
-	return export.Run(w, opts)
+	var exportErr error
+	components.RunWithSpinner("Exporting to OpenCode...", func() {
+		exportErr = export.Run(w, opts)
+	})
+
+	return exportErr
 }
 
 func runChat(args []string) error {
@@ -1364,9 +1536,13 @@ func runChatAssist(args []string) error {
 		return fmt.Errorf("opencode is not enabled; run 'norn runes edit --set opencode.enabled=true' to enable")
 	}
 	prompt := ""
+	artifactType := ""
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "--prompt=") {
 			prompt = strings.TrimPrefix(arg, "--prompt=")
+		}
+		if strings.HasPrefix(arg, "--type=") {
+			artifactType = strings.TrimPrefix(arg, "--type=")
 		}
 	}
 	if prompt == "" {
@@ -1386,8 +1562,17 @@ func runChatAssist(args []string) error {
 		return fmt.Errorf("prompt is required")
 	}
 	context := fmt.Sprintf("Project: %s. Stack: %s.", w.Runes.Name, strings.Join(w.Runes.Tooling.Languages, ", "))
-	logger.Info("requesting assistance", "prompt", prompt)
-	assist, err := opencode.Assist(w.Runes.OpenCode, context, prompt)
+	logger.Info("requesting assistance", "prompt", prompt, "type", artifactType)
+
+	var assist opencode.Assistance
+	components.RunWithSpinner("Waiting for AI response...", func() {
+		assist, err = opencode.Assist(opencode.AssistRequest{
+			Type:    artifactType,
+			Context: context,
+			Prompt:  prompt,
+		})
+	})
+
 	if err != nil {
 		return err
 	}
@@ -1409,6 +1594,12 @@ func runChatAssist(args []string) error {
 		logger.Print(styles.Label.Render("Skills:"))
 		for _, item := range assist.Skills {
 			logger.Print(fmt.Sprintf("  - %s: %s", item.Title, item.Summary))
+		}
+	}
+	if len(assist.Tools) > 0 {
+		logger.Print(styles.Label.Render("Tools:"))
+		for _, item := range assist.Tools {
+			logger.Print(fmt.Sprintf("  - %s: %s (%s)", item.ID, item.Title, item.Command))
 		}
 	}
 	// Ask for approval
@@ -1451,6 +1642,24 @@ func runChatAssist(args []string) error {
 			logger.Info("skill saved", "id", item.ID)
 		}
 	}
+	for _, item := range assist.Tools {
+		if item.ID == "" {
+			item.ID = slug(item.Title)
+		}
+		if item.Pattern == "" {
+			item.Pattern = item.Command + "*"
+		}
+		if err := toolstore.Save(norn.ToolsRoot(w), item); err != nil {
+			logger.Warn("failed to save tool", "id", item.ID, "error", err)
+		} else {
+			logger.Info("tool saved", "id", item.ID)
+		}
+	}
+	if len(assist.Tools) > 0 {
+		if err := fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w)); err != nil {
+			logger.Warn("failed to export opencode", "error", err)
+		}
+	}
 	return nil
 }
 
@@ -1463,17 +1672,30 @@ func runChatPreview(args []string) error {
 		return fmt.Errorf("opencode is not enabled; run 'norn runes edit --set opencode.enabled=true' to enable")
 	}
 	prompt := ""
+	artifactType := ""
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "--prompt=") {
 			prompt = strings.TrimPrefix(arg, "--prompt=")
 		}
+		if strings.HasPrefix(arg, "--type=") {
+			artifactType = strings.TrimPrefix(arg, "--type=")
+		}
 	}
 	if prompt == "" {
-		return fmt.Errorf("usage: norn chat preview --prompt=<prompt>")
+		return fmt.Errorf("usage: norn chat preview --prompt=<prompt> [--type=weaves|patterns|skills|tools|all]")
 	}
 	context := fmt.Sprintf("Project: %s. Stack: %s.", w.Runes.Name, strings.Join(w.Runes.Tooling.Languages, ", "))
-	logger.Info("generating preview", "prompt", prompt)
-	assist, err := opencode.Assist(w.Runes.OpenCode, context, prompt)
+	logger.Info("generating preview", "prompt", prompt, "type", artifactType)
+
+	var assist opencode.Assistance
+	components.RunWithSpinner("Generating preview...", func() {
+		assist, err = opencode.Assist(opencode.AssistRequest{
+			Type:    artifactType,
+			Context: context,
+			Prompt:  prompt,
+		})
+	})
+
 	if err != nil {
 		return err
 	}
@@ -1482,30 +1704,26 @@ func runChatPreview(args []string) error {
 		logger.Print(styles.Label.Render("Weaves:"))
 		for _, item := range assist.Weaves {
 			logger.Print(fmt.Sprintf("  - %s: %s", item.Title, item.Summary))
-			if item.Body != "" {
-				logger.Print(fmt.Sprintf("    Body: %s", strings.ReplaceAll(item.Body, "\n", "\n    ")))
-			}
 		}
 	}
 	if len(assist.Patterns) > 0 {
 		logger.Print(styles.Label.Render("Patterns:"))
 		for _, item := range assist.Patterns {
 			logger.Print(fmt.Sprintf("  - %s: %s", item.Title, item.Summary))
-			if item.Body != "" {
-				logger.Print(fmt.Sprintf("    Body: %s", strings.ReplaceAll(item.Body, "\n", "\n    ")))
-			}
 		}
 	}
 	if len(assist.Skills) > 0 {
 		logger.Print(styles.Label.Render("Skills:"))
 		for _, item := range assist.Skills {
 			logger.Print(fmt.Sprintf("  - %s: %s", item.Title, item.Summary))
-			if item.Body != "" {
-				logger.Print(fmt.Sprintf("    Body: %s", strings.ReplaceAll(item.Body, "\n", "\n    ")))
-			}
 		}
 	}
-	logger.Print(styles.Dimmed.Render("Use 'norn chat assist --prompt=...' to save these artifacts."))
+	if len(assist.Tools) > 0 {
+		logger.Print(styles.Label.Render("Tools:"))
+		for _, item := range assist.Tools {
+			logger.Print(fmt.Sprintf("  - %s: %s (%s)", item.ID, item.Title, item.Command))
+		}
+	}
 	return nil
 }
 

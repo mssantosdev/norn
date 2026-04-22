@@ -45,3 +45,20 @@ func (s Spinner) View() string {
 func (s *Spinner) Finish() {
 	s.done = true
 }
+
+// RunWithSpinner executes a function while displaying a spinner message.
+// The spinner runs in a goroutine and stops when the function completes.
+func RunWithSpinner(message string, fn func()) {
+	s := NewSpinner(message)
+	fmt.Println(s.View())
+
+	done := make(chan bool)
+	go func() {
+		fn()
+		close(done)
+	}()
+
+	<-done
+	// Clear the spinner line
+	fmt.Print("\r\033[K")
+}
