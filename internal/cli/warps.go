@@ -232,23 +232,23 @@ func promptWarpAssignment(root string) (norn.RuntimeAssignment, error) {
 	notes := ""
 	form := huh.NewForm(
 		huh.NewGroup(
-			huh.NewSelect[string]().Title("Kind").Options(
-				huh.NewOption("Thread", "thread"),
-				huh.NewOption("Weave", "weave"),
+			huh.NewSelect[string]().Title("Kind").Description("Type of artifact to assign to a warp").Options(
+				huh.NewOption("Thread — a task within a weave", "thread"),
+				huh.NewOption("Weave — a planning artifact", "weave"),
 			).Value(&kind),
 		),
-		huh.NewGroup(huh.NewInput().Title("Artifact ID").Value(&id)),
-		huh.NewGroup(huh.NewSelect[string]().Title("Warp").Options(warpOptions...).Value(&selectedWarp)),
-		huh.NewGroup(huh.NewInput().Title("Owner").Value(&owner)),
+		huh.NewGroup(huh.NewInput().Title("Artifact ID").Description("The weave or thread ID to assign").Placeholder("api-auth-weave").Value(&id)),
+		huh.NewGroup(huh.NewSelect[string]().Title("Warp").Description("Which work stream to assign it to").Options(warpOptions...).Value(&selectedWarp)),
+		huh.NewGroup(huh.NewInput().Title("Owner").Description("Who is responsible for this assignment").Placeholder("marcus").Value(&owner)),
 		huh.NewGroup(
-			huh.NewSelect[string]().Title("State").Options(
-				huh.NewOption("Active", "active"),
-				huh.NewOption("Review", "review"),
-				huh.NewOption("Blocked", "blocked"),
-				huh.NewOption("Done", "done"),
+			huh.NewSelect[string]().Title("State").Description("Current status of this assignment").Options(
+				huh.NewOption("Active — being worked on", "active"),
+				huh.NewOption("Review — ready for judge review", "review"),
+				huh.NewOption("Blocked — waiting on something", "blocked"),
+				huh.NewOption("Done — completed and approved", "done"),
 			).Value(&state),
 		),
-		huh.NewGroup(huh.NewText().Title("Notes").Value(&notes)),
+		huh.NewGroup(huh.NewText().Title("Notes").Description("Context, blockers, or handoff notes for this assignment").Placeholder("Waiting on API contract approval before proceeding").Value(&notes)),
 	)
 	if err := form.Run(); err != nil {
 		return norn.RuntimeAssignment{}, err
@@ -277,23 +277,23 @@ func promptWarpCreation() (norn.Warp, error) {
 	threadsValue := ""
 	notes := ""
 	form := huh.NewForm(
-		huh.NewGroup(huh.NewInput().Title("Title").Value(&title)),
-		huh.NewGroup(huh.NewInput().Title("ID").Description("Leave empty to derive from title").Value(&id)),
-		huh.NewGroup(huh.NewText().Title("Summary").Value(&summary)),
+		huh.NewGroup(huh.NewInput().Title("Title").Description("Human-readable name for this work stream").Placeholder("API Warp Q2").Value(&title)),
+		huh.NewGroup(huh.NewInput().Title("ID").Description("Unique identifier. Leave empty to auto-generate from title.").Placeholder("api-warp-q2").Value(&id)),
+		huh.NewGroup(huh.NewText().Title("Summary").Description("What this warp tracks and its goals").Placeholder("All API-related work for Q2 including auth, rate limiting, and documentation").Value(&summary)),
 		huh.NewGroup(
-			huh.NewSelect[string]().Title("Status").Options(
-				huh.NewOption("Active", "active"),
-				huh.NewOption("Paused", "paused"),
-				huh.NewOption("Review", "review"),
-				huh.NewOption("Done", "done"),
+			huh.NewSelect[string]().Title("Status").Description("Current state of work in this warp").Options(
+				huh.NewOption("Active — work in progress", "active"),
+				huh.NewOption("Paused — temporarily halted", "paused"),
+				huh.NewOption("Review — pending approval", "review"),
+				huh.NewOption("Done — completed", "done"),
 			).Value(&status),
 		),
-		huh.NewGroup(huh.NewInput().Title("Owner").Value(&owner)),
-		huh.NewGroup(huh.NewInput().Title("Root path").Value(&root)),
-		huh.NewGroup(huh.NewInput().Title("Branch").Value(&branch)),
-		huh.NewGroup(huh.NewInput().Title("Weaves").Description("Comma-separated weave ids").Value(&weavesValue)),
-		huh.NewGroup(huh.NewInput().Title("Threads").Description("Comma-separated thread ids").Value(&threadsValue)),
-		huh.NewGroup(huh.NewText().Title("Notes").Description("Blank uses a default runtime note scaffold").Value(&notes)),
+		huh.NewGroup(huh.NewInput().Title("Owner").Description("Person or team responsible for this warp").Placeholder("backend-team").Value(&owner)),
+		huh.NewGroup(huh.NewInput().Title("Root path").Description("Working directory for this warp (relative to project root)").Placeholder("./services/api").Value(&root)),
+		huh.NewGroup(huh.NewInput().Title("Branch").Description("Git branch associated with this warp's work").Placeholder("feature/api-v2").Value(&branch)),
+		huh.NewGroup(huh.NewInput().Title("Weaves").Description("Associated weave IDs (comma-separated)").Placeholder("auth-weave, rate-limit-weave").Value(&weavesValue)),
+		huh.NewGroup(huh.NewInput().Title("Threads").Description("Associated thread IDs (comma-separated)").Placeholder("jwt-middleware, api-docs").Value(&threadsValue)),
+		huh.NewGroup(huh.NewText().Title("Notes").Description("Runtime notes, blockers, or context. Blank uses a default scaffold.").Placeholder("Key decisions and blockers go here").Value(&notes)),
 	)
 	if err := form.Run(); err != nil {
 		return norn.Warp{}, err

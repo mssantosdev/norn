@@ -83,17 +83,8 @@ func applyDefaults(runes *RuneFile, root string) {
 	if runes.Preferences.Verbosity == "" {
 		runes.Preferences.Verbosity = "normal"
 	}
-	if runes.Planning.Mode == "" {
-		runes.Planning.Mode = PlanningModeFolder
-	}
 	if runes.Planning.Path == "" {
 		runes.Planning.Path = ".norn"
-	}
-	if runes.Overlay.Path == "" {
-		runes.Overlay.Path = ".norn"
-	}
-	if runes.Planning.DefaultSurface == "" {
-		runes.Planning.DefaultSurface = "shared"
 	}
 	if runes.OpenCode.Provider == "" {
 		runes.OpenCode.Provider = "github-copilot"
@@ -172,13 +163,9 @@ func mergeRuneLayer(dst *RuneFile, src runeLayer) {
 	if src.Name != "" {
 		dst.Name = src.Name
 	}
-	if src.Mode != "" {
-		dst.Mode = src.Mode
-	}
 	mergePreferences(&dst.Preferences, src.Preferences)
 	mergeUI(&dst.UI, src.UI)
 	mergePlanning(&dst.Planning, src.Planning)
-	mergeOverlay(&dst.Overlay, src.Overlay)
 	mergeOpenCode(&dst.OpenCode, src.OpenCode)
 	mergeTooling(&dst.Tooling, src.Tooling)
 	if src.Hydra.Enabled != nil {
@@ -202,21 +189,6 @@ func mergeUI(dst *UIConfig, src UIConfig) {
 }
 
 func mergePlanning(dst *PlanningConfig, src PlanningConfig) {
-	if src.Mode != "" {
-		dst.Mode = src.Mode
-	}
-	if src.Path != "" {
-		dst.Path = src.Path
-	}
-	if src.Branch != "" {
-		dst.Branch = src.Branch
-	}
-	if src.DefaultSurface != "" {
-		dst.DefaultSurface = src.DefaultSurface
-	}
-}
-
-func mergeOverlay(dst *OverlayConfig, src OverlayConfig) {
 	if src.Path != "" {
 		dst.Path = src.Path
 	}

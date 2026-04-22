@@ -7,13 +7,6 @@ const (
 	WorkspaceModeWorkspace WorkspaceMode = "workspace"
 )
 
-type PlanningMode string
-
-const (
-	PlanningModeFolder PlanningMode = "folder"
-	PlanningModeBranch PlanningMode = "branch"
-)
-
 type RuneFile struct {
 	Version     string            `yaml:"version"`
 	Name        string            `yaml:"name"`
@@ -21,7 +14,6 @@ type RuneFile struct {
 	Preferences PreferencesConfig `yaml:"preferences"`
 	UI          UIConfig          `yaml:"ui"`
 	Planning    PlanningConfig    `yaml:"planning"`
-	Overlay     OverlayConfig     `yaml:"overlay"`
 	OpenCode    OpenCodeConfig    `yaml:"opencode"`
 	Tooling     ToolingConfig     `yaml:"tooling"`
 	Hydra       HydraConfig       `yaml:"hydra"`
@@ -37,10 +29,7 @@ type UIConfig struct {
 }
 
 type PlanningConfig struct {
-	Mode           PlanningMode `yaml:"mode"`
-	Path           string       `yaml:"path"`
-	Branch         string       `yaml:"branch,omitempty"`
-	DefaultSurface string       `yaml:"default_surface,omitempty"`
+	Path string `yaml:"path"`
 }
 
 type OverlayConfig struct {
@@ -72,22 +61,20 @@ type Workspace struct {
 }
 
 type InitOptions struct {
-	Name            string
-	Mode            PlanningMode
-	PlanningPath    string
-	Skeleton        string
-	EnableOpenCode  bool
-	OpenCodeModel   string
-	OpenCodeAgent   string
-	Theme           string
-	Languages       []string
-	Tools           []string
-	Frameworks      []string
-	WorkspaceMode   WorkspaceMode
-	HydraEnabled    bool
-	NonInteractive  bool
-	OpenCodePrompt  string
-	LocalOverlayDir string
+	Name           string
+	PlanningPath   string
+	Skeleton       string
+	EnableOpenCode bool
+	OpenCodeModel  string
+	OpenCodeAgent  string
+	Theme          string
+	Languages      []string
+	Tools          []string
+	Frameworks     []string
+	WorkspaceMode  WorkspaceMode
+	HydraEnabled   bool
+	NonInteractive bool
+	OpenCodePrompt string
 }
 
 type Detection struct {
@@ -152,20 +139,17 @@ type RuntimeAssignment struct {
 }
 
 type Status struct {
-	Root          string
-	Mode          WorkspaceMode
-	PlanningMode  PlanningMode
-	PlanningPath  string
-	OverlayPath   string
-	OpenCode      bool
-	Hydra         bool
-	Languages     []string
-	Tools         []string
-	Frameworks    []string
-	Fates         int
-	Commands      int
-	Patterns      int
-	Skills        int
-	SharedWeaves  int
-	OverlayWeaves int
+	Root         string
+	Mode         WorkspaceMode
+	PlanningPath string
+	OpenCode     bool
+	Hydra        bool
+	Languages    []string
+	Tools        []string
+	Frameworks   []string
+	Fates        int
+	Commands     int
+	Patterns     int
+	Skills       int
+	Weaves       int
 }

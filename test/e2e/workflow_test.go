@@ -18,7 +18,7 @@ func TestBasicWorkflow(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte("{}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := cli.Run([]string{"init", "--no-interactive", "--name=e2e-project", "--mode=folder"}); err != nil {
+	if err := cli.Run([]string{"init", "--no-interactive", "--name=e2e-project"}); err != nil {
 		t.Fatalf("init failed: %v", err)
 	}
 	if err := cli.Run([]string{"patterns", "add", "API Contract", "Shared API expectations"}); err != nil {

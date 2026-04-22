@@ -96,9 +96,6 @@ tooling:
 	if w.Runes.UI.Theme != "dracula" {
 		t.Fatalf("expected workspace theme override, got %q", w.Runes.UI.Theme)
 	}
-	if w.Runes.Planning.DefaultSurface != "both" {
-		t.Fatalf("expected workspace default surface override, got %q", w.Runes.Planning.DefaultSurface)
-	}
 	if w.Runes.OpenCode.Enabled {
 		t.Fatalf("expected workspace layer to disable opencode")
 	}
@@ -165,9 +162,6 @@ planning:
 	}
 	if w.Runes.Planning.Path != ".norn" {
 		t.Fatalf("expected default planning path .norn, got %q", w.Runes.Planning.Path)
-	}
-	if w.Runes.Planning.DefaultSurface != "shared" {
-		t.Fatalf("expected default planning surface shared, got %q", w.Runes.Planning.DefaultSurface)
 	}
 	if w.Runes.OpenCode.ResponseLanguage != "en" {
 		t.Fatalf("expected default response language en, got %q", w.Runes.OpenCode.ResponseLanguage)
@@ -266,7 +260,7 @@ func TestRunesEditSetAndUnsetByScope(t *testing.T) {
 	if err := cli.Run([]string{"runes", "edit", "--scope=global", "--set=preferences.language=pt-BR", "--set=opencode.enabled=true"}); err != nil {
 		t.Fatalf("global edit failed: %v", err)
 	}
-	if err := cli.Run([]string{"runes", "edit", "--scope=workspace", "--set=preferences.language=en", "--set=planning.default_surface=both"}); err != nil {
+	if err := cli.Run([]string{"runes", "edit", "--scope=workspace", "--set=preferences.language=en", "--set=planning.path=.norn"}); err != nil {
 		t.Fatalf("workspace edit failed: %v", err)
 	}
 	if err := cli.Run([]string{"runes", "edit", "--scope=workspace", "--unset=opencode.enabled"}); err != nil {
@@ -282,9 +276,6 @@ func TestRunesEditSetAndUnsetByScope(t *testing.T) {
 	}
 	if w.Runes.Preferences.Language != "es" {
 		t.Fatalf("expected local override language, got %q", w.Runes.Preferences.Language)
-	}
-	if w.Runes.Planning.DefaultSurface != "both" {
-		t.Fatalf("expected workspace default surface, got %q", w.Runes.Planning.DefaultSurface)
 	}
 	if !w.Runes.OpenCode.Enabled {
 		t.Fatalf("expected global opencode enabled to apply")

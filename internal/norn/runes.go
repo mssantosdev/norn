@@ -71,11 +71,9 @@ var editableRunePaths = map[string]string{
 }
 
 var runePathEnums = map[string][]string{
-	"preferences.verbosity":    {"quiet", "normal", "loud"},
-	"ui.theme":                 {"tokyonight", "catppuccin", "dracula", "nord", "onedark"},
-	"planning.mode":            {string(PlanningModeFolder), string(PlanningModeBranch)},
-	"planning.default_surface": {"shared", "local", "both"},
-	"opencode.drafting_mode":   {"ask", "auto"},
+	"preferences.verbosity":  {"quiet", "normal", "loud"},
+	"ui.theme":               {"tokyonight", "catppuccin", "dracula", "nord", "onedark"},
+	"opencode.drafting_mode": {"ask", "auto"},
 }
 
 func ParseRuneScope(value string) (RuneScope, error) {
@@ -309,16 +307,8 @@ func ResolvedFieldValue(r RuneResolution, path string) any {
 		return r.Effective.Preferences.Verbosity
 	case "ui.theme":
 		return r.Effective.UI.Theme
-	case "planning.mode":
-		return string(r.Effective.Planning.Mode)
 	case "planning.path":
 		return r.Effective.Planning.Path
-	case "planning.branch":
-		return r.Effective.Planning.Branch
-	case "planning.default_surface":
-		return r.Effective.Planning.DefaultSurface
-	case "overlay.path":
-		return r.Effective.Overlay.Path
 	case "opencode.enabled":
 		return r.Effective.OpenCode.Enabled
 	case "opencode.provider":

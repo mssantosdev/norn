@@ -251,7 +251,6 @@ func runRunesEditInteractive(root string, scope norn.RuneScope) error {
 	language := scopeStringValue(layer, "preferences.language")
 	verbosity := scopeEnumValue(layer, "preferences.verbosity")
 	theme := scopeEnumValue(layer, "ui.theme")
-	planningMode := scopeEnumValue(layer, "planning.mode")
 	planningPath := scopeStringValue(layer, "planning.path")
 	openCodeEnabled := scopeTriStateValue(layer, "opencode.enabled")
 	openCodeProvider := scopeStringValue(layer, "opencode.provider")
@@ -275,7 +274,6 @@ func runRunesEditInteractive(root string, scope norn.RuneScope) error {
 			huh.NewSelect[string]().Title("Theme").Description(fieldDescription(resolution, "ui.theme")).Options(enumOptions("<inherit>", "", []string{"tokyonight", "catppuccin", "dracula", "nord", "onedark"})...).Value(&theme),
 		),
 		huh.NewGroup(
-			huh.NewSelect[string]().Title("Planning mode").Description(fieldDescription(resolution, "planning.mode")).Options(enumOptions("<inherit>", "", []string{string(norn.PlanningModeFolder)})...).Value(&planningMode),
 			huh.NewInput().Title("Planning path").Description(fieldDescription(resolution, "planning.path")).Value(&planningPath),
 		),
 		huh.NewGroup(
@@ -303,7 +301,6 @@ func runRunesEditInteractive(root string, scope norn.RuneScope) error {
 	setString(updated, "preferences.language", language)
 	setString(updated, "preferences.verbosity", verbosity)
 	setString(updated, "ui.theme", theme)
-	setString(updated, "planning.mode", planningMode)
 	setString(updated, "planning.path", planningPath)
 	setTriState(updated, "opencode.enabled", openCodeEnabled)
 	setString(updated, "opencode.provider", openCodeProvider)

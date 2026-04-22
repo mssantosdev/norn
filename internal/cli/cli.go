@@ -114,12 +114,6 @@ func runInit(args []string) error {
 	if opts.OpenCodeAgent == "" {
 		opts.OpenCodeAgent = "build"
 	}
-	if opts.LocalOverlayDir == "" {
-		opts.LocalOverlayDir = ".norn"
-	}
-	if opts.Mode == "" {
-		opts.Mode = norn.PlanningModeFolder
-	}
 	if opts.PlanningPath == "" {
 		opts.PlanningPath = ".norn"
 	}
@@ -131,8 +125,7 @@ func runInit(args []string) error {
 			Mode:        detectWorkspaceMode("."),
 			Preferences: norn.PreferencesConfig{Language: "en", Verbosity: "normal"},
 			UI:          norn.UIConfig{Theme: opts.Theme},
-			Planning:    norn.PlanningConfig{Mode: opts.Mode, Path: opts.PlanningPath, DefaultSurface: "shared"},
-			Overlay:     norn.OverlayConfig{Path: opts.LocalOverlayDir},
+			Planning:    norn.PlanningConfig{Path: opts.PlanningPath},
 			OpenCode:    norn.OpenCodeConfig{Enabled: opts.EnableOpenCode, Provider: "github-copilot", Model: opts.OpenCodeModel, Agent: opts.OpenCodeAgent, ResponseLanguage: "en", DraftingMode: "ask"},
 			Tooling:     norn.ToolingConfig{Languages: opts.Languages, Tools: opts.Tools, Frameworks: opts.Frameworks},
 			Hydra:       norn.HydraConfig{Enabled: detectWorkspaceMode(".") == norn.WorkspaceModeWorkspace},
@@ -174,32 +167,22 @@ func runInit(args []string) error {
 			}
 		}
 	}
-	logger.Info("workspace initialized", "name", workspace.Runes.Name, "planning", workspace.Runes.Planning.Path, "mode", workspace.Runes.Planning.Mode)
+	logger.Info("workspace initialized", "name", workspace.Runes.Name, "planning", workspace.Runes.Planning.Path)
 	return nil
 }
 
 func parseInitArgs(args []string) (norn.InitOptions, error) {
-	opts := norn.InitOptions{Mode: norn.PlanningModeFolder}
+	opts := norn.InitOptions{}
 	for _, arg := range args {
 		switch {
 		case arg == "--no-interactive":
 			opts.NonInteractive = true
 		case arg == "--enable-opencode":
 			opts.EnableOpenCode = true
-		case arg == "--create-branch":
-			return opts, fmt.Errorf("--create-branch is deprecated; planning branch mode has been removed")
-		case strings.HasPrefix(arg, "--mode="):
-			mode := strings.TrimPrefix(arg, "--mode=")
-			if mode == "branch" {
-				return opts, fmt.Errorf("--mode=branch is deprecated; planning branch mode has been removed")
-			}
-			opts.Mode = norn.PlanningMode(mode)
 		case strings.HasPrefix(arg, "--name="):
 			opts.Name = strings.TrimPrefix(arg, "--name=")
 		case strings.HasPrefix(arg, "--path="):
 			opts.PlanningPath = strings.TrimPrefix(arg, "--path=")
-		case strings.HasPrefix(arg, "--branch="):
-			return opts, fmt.Errorf("--branch is deprecated; planning branch mode has been removed")
 		case strings.HasPrefix(arg, "--theme="):
 			opts.Theme = strings.TrimPrefix(arg, "--theme=")
 		case strings.HasPrefix(arg, "--languages="):
@@ -236,38 +219,68 @@ func runInitForm(opts *norn.InitOptions) error {
 		skeleton = "standard"
 	}
 
+	getAIHelp := false
+
 	form := huh.NewForm(
 		huh.NewGroup(
-			huh.NewInput().Title("Project name").Value(&projectName),
+			huh.NewInput().
+				Title("Project name").
+				Description("What should this project be called? This name appears in status and exports.").
+				Placeholder("my-awesome-project").
+				Value(&projectName),
 		),
 		huh.NewGroup(
-			huh.NewSelect[string]().Title("Initial structure").Options(
-				huh.NewOption("Standard Norn structure", "standard"),
-				huh.NewOption("Empty", "empty"),
-				huh.NewOption("Guided", "guided"),
-				huh.NewOption("Help me with OpenCode", "opencode"),
-			).Value(&skeleton),
+			huh.NewConfirm().
+				Title("Enable OpenCode integration?").
+				Description("Export Norn's fates and skills as OpenCode agents. This lets you chat with the skald for planning help, and ensures your team's AI tools follow project conventions.").
+				Value(&openCodeEnabled),
 		),
 		huh.NewGroup(
-			huh.NewConfirm().Title("Enable OpenCode integration?").Value(&openCodeEnabled),
+			huh.NewConfirm().
+				Title("Get AI help with initial setup?").
+				Description("The skald agent will suggest initial patterns and documentation based on your project description.").
+				Value(&getAIHelp),
+		).WithHideFunc(func() bool { return !openCodeEnabled }),
+		huh.NewGroup(
+			huh.NewText().
+				Title("Describe your project for the skald").
+				Description("Help the skald understand your project. Be specific about the tech stack and goals.\n\nExamples:\n• A Go CLI tool for managing Docker containers with Cobra\n• A React + TypeScript frontend with real-time WebSocket updates\n• A Rust microservice that processes payments with Stripe integration").
+				Placeholder("A [language] [type] that [does what]").
+				Value(&openCodePrompt),
+		).WithHideFunc(func() bool { return !openCodeEnabled || !getAIHelp }),
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Project scaffold").
+				Description("What to create in the project directory.").
+				Options(
+					huh.NewOption("Standard — README, constitution, and default folders", "standard"),
+					huh.NewOption("Empty — minimal structure, add artifacts manually", "empty"),
+				).Value(&skeleton),
 		),
 		huh.NewGroup(
-			huh.NewInput().Title("OpenCode prompt").Description("Describe what you want help planning").Value(&openCodePrompt),
-		).WithHideFunc(func() bool { return !openCodeEnabled && skeleton != "opencode" }),
-		huh.NewGroup(
-			huh.NewSelect[string]().Title("Theme").Options(themeOptions()...).Value(&theme),
+			huh.NewSelect[string]().
+				Title("Theme").
+				Description("Color theme for all Norn CLI output.").
+				Options(themeOptions()...).
+				Value(&theme),
 		),
 	)
 	if err := form.Run(); err != nil {
 		return err
 	}
 
-	preview := fmt.Sprintf("Project: %s\nStructure: %s\nOpenCode: %t\nTheme: %s", projectName, skeleton, openCodeEnabled, theme)
+	var previewFiles string
+	if skeleton == "standard" {
+		previewFiles = "\n\nFiles to create:\n[NEW] .norn/README.md\n[NEW] .norn/constitution.md\n[NEW] .norn/weaves/\n[NEW] .norn/patterns/\n[NEW] .norn/skills/\n[NEW] .norn/fates/keeper.yaml\n[NEW] .norn/fates/weaver.yaml\n[NEW] .norn/fates/judge.yaml\n[NEW] .norn/fates/fates.yaml\n[NEW] .norn/fates/skald.yaml"
+	} else {
+		previewFiles = "\n\nFiles to create:\n[NEW] .norn/"
+	}
+	preview := fmt.Sprintf("Project: %s\nScaffold: %s\nOpenCode: %t%s\nTheme: %s", projectName, skeleton, openCodeEnabled, previewFiles, theme)
 	confirmed := true
 	confirm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().Title("Preview").Description(preview),
-			huh.NewConfirm().Title("Initialize workspace?").Value(&confirmed),
+			huh.NewConfirm().Title("Create workspace with these files?").Value(&confirmed),
 		),
 	)
 	if err := confirm.Run(); err != nil {
@@ -278,10 +291,9 @@ func runInitForm(opts *norn.InitOptions) error {
 	}
 
 	opts.Name = projectName
-	opts.Mode = norn.PlanningModeFolder
 	opts.Skeleton = skeleton
 	opts.EnableOpenCode = openCodeEnabled
-	if openCodeEnabled || skeleton == "opencode" {
+	if openCodeEnabled && getAIHelp {
 		opts.OpenCodePrompt = openCodePrompt
 	}
 	opts.Theme = theme
@@ -296,16 +308,14 @@ func runStatus() error {
 	logger.Print(styles.Title.Render("Norn Status"))
 	logger.Print(styles.KV("root", w.Root))
 	logger.Print(styles.KV("workspace mode", string(w.Runes.Mode)))
-	logger.Print(styles.KV("planning mode", string(w.Runes.Planning.Mode)))
 	logger.Print(styles.KV("planning path", w.Runes.Planning.Path))
-	logger.Print(styles.KV("overlay path", w.Runes.Overlay.Path))
 	logger.Print(styles.KV("hydra", fmt.Sprintf("%t", w.Runes.Hydra.Enabled)))
 	logger.Print(styles.KV("opencode", fmt.Sprintf("%t", w.Runes.OpenCode.Enabled)))
 	logger.Print(styles.KV("languages", strings.Join(w.Runes.Tooling.Languages, ", ")))
 	logger.Print(styles.KV("tools", strings.Join(w.Runes.Tooling.Tools, ", ")))
 	logger.Print(styles.KV("frameworks", strings.Join(w.Runes.Tooling.Frameworks, ", ")))
 	logger.Print(styles.KV("fates", fmt.Sprintf("%d", norn.CountFiles(norn.FatesRoot(w), ".yaml"))))
-	logger.Print(styles.KV("commands", fmt.Sprintf("%d", norn.CountFiles(norn.ToolsRoot(w), ".yaml"))))
+	logger.Print(styles.KV("tools", fmt.Sprintf("%d", norn.CountFiles(norn.ToolsRoot(w), ".yaml"))))
 	logger.Print(styles.KV("weaves", fmt.Sprintf("%d", countWeaves(w))))
 	logger.Print(styles.KV("threads", fmt.Sprintf("%d", countThreads(w))))
 	logger.Print(styles.KV("patterns", fmt.Sprintf("%d", norn.CountFiles(filepath.Join(norn.SharedPlanningRoot(w), "patterns"), ".md"))))
@@ -400,12 +410,12 @@ func runFatesAddInteractive(w norn.Workspace) error {
 	body := ""
 	allowEdit := false
 	form := huh.NewForm(
-		huh.NewGroup(huh.NewInput().Title("Name").Value(&name)),
-		huh.NewGroup(huh.NewInput().Title("Description").Value(&description)),
-		huh.NewGroup(huh.NewInput().Title("Model").Value(&model)),
-		huh.NewGroup(huh.NewInput().Title("Temperature").Value(&temperature)),
-		huh.NewGroup(huh.NewText().Title("Body").Description("Agent instructions").Value(&body)),
-		huh.NewGroup(huh.NewConfirm().Title("Allow edit?").Value(&allowEdit)),
+		huh.NewGroup(huh.NewInput().Title("Name").Description("Unique identifier (lowercase, no spaces) — e.g., 'keeper', 'custom-agent'").Placeholder("my-agent").Value(&name)),
+		huh.NewGroup(huh.NewInput().Title("Description").Description("One-line summary of this fate's responsibilities").Placeholder("Reviews API contracts and validates schemas").Value(&description)),
+		huh.NewGroup(huh.NewInput().Title("Model").Description("AI model to use — e.g., github-copilot/gpt-5.4-mini").Placeholder("github-copilot/gpt-5.4-mini").Value(&model)),
+		huh.NewGroup(huh.NewInput().Title("Temperature").Description("Creativity: 0.0 strict, 0.2 balanced, 0.5 creative").Placeholder("0.2").Value(&temperature)),
+		huh.NewGroup(huh.NewText().Title("Body").Description("System prompt defining this fate's behavior, constraints, and responsibilities. This is exported to OpenCode as the agent definition.").Placeholder("You are the reviewer fate. Check all API changes for backward compatibility.").Value(&body)),
+		huh.NewGroup(huh.NewConfirm().Title("Allow edit?").Description("Whether this fate can modify files directly. Keep false for review-only fates.").Value(&allowEdit)),
 	)
 	if err := form.Run(); err != nil {
 		return err
@@ -465,11 +475,11 @@ func runFatesEditInteractive(w norn.Workspace, name string) error {
 	body := item.Body
 	allowEdit := item.AllowEdit
 	form := huh.NewForm(
-		huh.NewGroup(huh.NewInput().Title("Description").Value(&description)),
-		huh.NewGroup(huh.NewInput().Title("Model").Value(&model)),
-		huh.NewGroup(huh.NewInput().Title("Temperature").Value(&temperature)),
-		huh.NewGroup(huh.NewText().Title("Body").Description("Agent instructions").Value(&body)),
-		huh.NewGroup(huh.NewConfirm().Title("Allow edit?").Value(&allowEdit)),
+		huh.NewGroup(huh.NewInput().Title("Description").Description("One-line summary of this fate's responsibilities").Placeholder("Reviews API contracts and validates schemas").Value(&description)),
+		huh.NewGroup(huh.NewInput().Title("Model").Description("AI model to use — e.g., github-copilot/gpt-5.4-mini").Placeholder("github-copilot/gpt-5.4-mini").Value(&model)),
+		huh.NewGroup(huh.NewInput().Title("Temperature").Description("Creativity: 0.0 strict, 0.2 balanced, 0.5 creative").Placeholder("0.2").Value(&temperature)),
+		huh.NewGroup(huh.NewText().Title("Body").Description("System prompt defining this fate's behavior, constraints, and responsibilities. This is exported to OpenCode as the agent definition.").Placeholder("You are the reviewer fate. Check all API changes for backward compatibility.").Value(&body)),
+		huh.NewGroup(huh.NewConfirm().Title("Allow edit?").Description("Whether this fate can modify files directly. Keep false for review-only fates.").Value(&allowEdit)),
 	)
 	if err := form.Run(); err != nil {
 		return err
@@ -585,9 +595,9 @@ func runDocEditInteractive(kind, root, id string) error {
 	summary := doc.Summary
 	body := doc.Body
 	form := huh.NewForm(
-		huh.NewGroup(huh.NewInput().Title("Title").Value(&title)),
-		huh.NewGroup(huh.NewInput().Title("Summary").Value(&summary)),
-		huh.NewGroup(huh.NewText().Title("Body").Value(&body)),
+		huh.NewGroup(huh.NewInput().Title("Title").Description("Human-readable name for this artifact").Placeholder("API Authentication Pattern").Value(&title)),
+		huh.NewGroup(huh.NewInput().Title("Summary").Description("One-line description of what this artifact covers").Placeholder("How to authenticate API requests using JWT tokens").Value(&summary)),
+		huh.NewGroup(huh.NewText().Title("Body").Description("Full content. Use Markdown formatting. This is what fates and humans read for context.").Placeholder("## Overview\n\nDescribe the pattern, convention, or skill here.\n\n## Examples\n\nProvide concrete examples.").Value(&body)),
 	)
 	if err := form.Run(); err != nil {
 		return err
@@ -707,19 +717,19 @@ func runToolsEditInteractive(w norn.Workspace, root, id string) error {
 	risk := item.Risk
 	rolesStr := strings.Join(item.Roles, ", ")
 	form := huh.NewForm(
-		huh.NewGroup(huh.NewInput().Title("Title").Value(&title)),
-		huh.NewGroup(huh.NewInput().Title("Description").Value(&description)),
-		huh.NewGroup(huh.NewInput().Title("Category").Value(&category)),
-		huh.NewGroup(huh.NewInput().Title("Command").Value(&command)),
-		huh.NewGroup(huh.NewInput().Title("Pattern").Description("Leave empty to derive from command").Value(&pattern)),
+		huh.NewGroup(huh.NewInput().Title("Title").Description("Human-readable name — e.g., 'Run Tests'").Placeholder("Run Tests").Value(&title)),
+		huh.NewGroup(huh.NewInput().Title("Description").Description("What this tool does and when to use it").Placeholder("Runs the full test suite with coverage reporting").Value(&description)),
+		huh.NewGroup(huh.NewInput().Title("Category").Description("Tool type: build, test, lint, deploy, setup").Placeholder("test").Value(&category)),
+		huh.NewGroup(huh.NewInput().Title("Command").Description("Exact shell command to run. Use !command syntax for OpenCode: !go test ./...").Placeholder("go test ./...").Value(&command)),
+		huh.NewGroup(huh.NewInput().Title("Pattern").Description("Glob pattern to match files this tool operates on. Leave empty to derive from command.").Placeholder("*.go").Value(&pattern)),
 		huh.NewGroup(
-			huh.NewSelect[string]().Title("Risk").Options(
-				huh.NewOption("Low", "low"),
-				huh.NewOption("Medium", "medium"),
-				huh.NewOption("High", "high"),
+			huh.NewSelect[string]().Title("Risk").Description("Safety level: low (read-only), medium (can modify), high (destructive)").Options(
+				huh.NewOption("Low — read-only", "low"),
+				huh.NewOption("Medium — can modify files", "medium"),
+				huh.NewOption("High — destructive operations", "high"),
 			).Value(&risk),
 		),
-		huh.NewGroup(huh.NewInput().Title("Roles").Description("Comma-separated list of roles").Value(&rolesStr)),
+		huh.NewGroup(huh.NewInput().Title("Roles").Description("Which fates can invoke this tool — comma-separated").Placeholder("weaver, fates").Value(&rolesStr)),
 	)
 	if err := form.Run(); err != nil {
 		return err
@@ -1356,63 +1366,12 @@ func norm(path string) string {
 	return filepath.Clean(path)
 }
 
-func parseSurfaceArgs(args []string) (string, []string, error) {
-	surface := ""
-	remaining := make([]string, 0, len(args))
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "--surface=") {
-			surface = strings.TrimPrefix(arg, "--surface=")
-			continue
-		}
-		remaining = append(remaining, arg)
-	}
-	if surface == "" {
-		return "", remaining, nil
-	}
-	switch surface {
-	case "shared", "local", "both":
-		return surface, remaining, nil
-	default:
-		return "", nil, fmt.Errorf("invalid surface %q; expected shared, local, or both", surface)
-	}
+func saveWeave(w norn.Workspace, doc norn.Document) error {
+	return weaves.SaveToSurface(norn.SharedPlanningRoot(w), doc)
 }
 
-func saveWeaveToSurface(w norn.Workspace, surface string, doc norn.Document) error {
-	if surface == "" {
-		surface = w.Runes.Planning.DefaultSurface
-	}
-	switch surface {
-	case "shared":
-		return weaves.SaveToSurface(norn.SharedPlanningRoot(w), doc)
-	case "local":
-		return weaves.SaveToSurface(norn.OverlayPlanningRoot(w), doc)
-	case "both":
-		if err := weaves.SaveToSurface(norn.SharedPlanningRoot(w), doc); err != nil {
-			return err
-		}
-		return weaves.SaveToSurface(norn.OverlayPlanningRoot(w), doc)
-	default:
-		return fmt.Errorf("unsupported surface %q", surface)
-	}
-}
-
-func saveThreadToSurface(w norn.Workspace, surface, weaveID string, doc norn.Document) error {
-	if surface == "" {
-		surface = w.Runes.Planning.DefaultSurface
-	}
-	switch surface {
-	case "shared":
-		return threads.SaveToSurface(norn.SharedPlanningRoot(w), weaveID, doc)
-	case "local":
-		return threads.SaveToSurface(norn.OverlayPlanningRoot(w), weaveID, doc)
-	case "both":
-		if err := threads.SaveToSurface(norn.SharedPlanningRoot(w), weaveID, doc); err != nil {
-			return err
-		}
-		return threads.SaveToSurface(norn.OverlayPlanningRoot(w), weaveID, doc)
-	default:
-		return fmt.Errorf("unsupported surface %q", surface)
-	}
+func saveThread(w norn.Workspace, weaveID string, doc norn.Document) error {
+	return threads.SaveToSurface(norn.SharedPlanningRoot(w), weaveID, doc)
 }
 
 func promptWeaveCreation(w norn.Workspace) (norn.Document, error) {
@@ -1424,13 +1383,13 @@ func promptWeaveCreation(w norn.Workspace) (norn.Document, error) {
 	scope := ""
 	acceptance := ""
 	form := huh.NewForm(
-		huh.NewGroup(huh.NewInput().Title("Title").Value(&title)),
-		huh.NewGroup(huh.NewInput().Title("ID").Description("Leave empty to derive from title").Value(&id)),
-		huh.NewGroup(huh.NewText().Title("Summary").Value(&summary)),
-		huh.NewGroup(huh.NewText().Title("Goal").Value(&goal)),
-		huh.NewGroup(huh.NewText().Title("User stories").Description("One or more user stories, one per line").Value(&userStories)),
-		huh.NewGroup(huh.NewText().Title("Scope").Description("Scope items, one per line").Value(&scope)),
-		huh.NewGroup(huh.NewText().Title("Acceptance").Description("Acceptance items, one per line").Value(&acceptance)),
+		huh.NewGroup(huh.NewInput().Title("Title").Description("Human-readable name — e.g., 'API Authentication'").Placeholder("API Authentication").Value(&title)),
+		huh.NewGroup(huh.NewInput().Title("ID").Description("URL-friendly identifier. Leave empty to auto-generate from title.").Placeholder("api-authentication").Value(&id)),
+		huh.NewGroup(huh.NewText().Title("Summary").Description("One-line description of this weave's purpose").Placeholder("Secure all API endpoints with JWT-based authentication").Value(&summary)),
+		huh.NewGroup(huh.NewText().Title("Goal").Description("What this weave aims to achieve when complete").Placeholder("All API requests require valid authentication tokens").Value(&goal)),
+		huh.NewGroup(huh.NewText().Title("User stories").Description("Format: As a [role], I want [goal], so that [benefit]. One per line.").Placeholder("As a user, I want secure endpoints, so that my data is protected\nAs a developer, I want clear auth errors, so that I can debug issues").Value(&userStories)),
+		huh.NewGroup(huh.NewText().Title("Scope").Description("What's included. Use 'Out of scope:' to define boundaries. One per line.").Placeholder("JWT token generation and validation\nOut of scope: OAuth, SAML, session management").Value(&scope)),
+		huh.NewGroup(huh.NewText().Title("Acceptance").Description("Testable criteria for completion. One per line.").Placeholder("All endpoints return 401 for missing tokens\nToken expiration returns 403 with clear message\nRate limiting applies per user, not per IP").Value(&acceptance)),
 	)
 	if err := form.Run(); err != nil {
 		return norn.Document{}, err
@@ -1472,14 +1431,14 @@ func promptThreadCreation(w norn.Workspace) (string, norn.Document, error) {
 	strands := ""
 	acceptance := ""
 	form := huh.NewForm(
-		huh.NewGroup(huh.NewSelect[string]().Title("Parent weave").Options(options...).Value(&selectedWeave)),
-		huh.NewGroup(huh.NewInput().Title("Title").Value(&title)),
-		huh.NewGroup(huh.NewInput().Title("ID").Description("Leave empty to derive from title").Value(&id)),
-		huh.NewGroup(huh.NewText().Title("Summary").Value(&summary)),
-		huh.NewGroup(huh.NewText().Title("Goal").Value(&goal)),
-		huh.NewGroup(huh.NewText().Title("User story").Value(&userStory)),
-		huh.NewGroup(huh.NewText().Title("Strands").Description("One strand per line").Value(&strands)),
-		huh.NewGroup(huh.NewText().Title("Acceptance").Description("One item per line").Value(&acceptance)),
+		huh.NewGroup(huh.NewSelect[string]().Title("Parent weave").Description("Which weave this thread belongs to").Options(options...).Value(&selectedWeave)),
+		huh.NewGroup(huh.NewInput().Title("Title").Description("Human-readable name — e.g., 'Implement JWT middleware'").Placeholder("Implement JWT middleware").Value(&title)),
+		huh.NewGroup(huh.NewInput().Title("ID").Description("URL-friendly identifier. Leave empty to auto-generate from title.").Placeholder("jwt-middleware").Value(&id)),
+		huh.NewGroup(huh.NewText().Title("Summary").Description("One-line description of this thread's purpose").Placeholder("Add JWT token validation to all API endpoints").Value(&summary)),
+		huh.NewGroup(huh.NewText().Title("Goal").Description("Specific objective for this thread").Placeholder("Ensure all API requests are authenticated with valid JWT tokens").Value(&goal)),
+		huh.NewGroup(huh.NewText().Title("User story").Description("Format: As a [role], I want [goal], so that [benefit]").Placeholder("As an API consumer, I want secure endpoints, so that my data is protected").Value(&userStory)),
+		huh.NewGroup(huh.NewText().Title("Strands").Description("Sub-tasks or implementation steps. One per line.").Placeholder("Create auth middleware\nAdd token validation\nWrite tests\nUpdate API docs").Value(&strands)),
+		huh.NewGroup(huh.NewText().Title("Acceptance").Description("Testable completion criteria. One per line.").Placeholder("All API endpoints reject requests without valid JWT\nToken expiration is handled gracefully\nTests cover valid, expired, and malformed tokens").Value(&acceptance)),
 	)
 	if err := form.Run(); err != nil {
 		return "", norn.Document{}, err
