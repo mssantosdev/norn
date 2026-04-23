@@ -171,7 +171,9 @@ func runInit(args []string) error {
 			}
 		}
 	}
-	logger.Info("workspace initialized", "name", workspace.Runes.Name, "planning", workspace.Runes.Planning.Path)
+	logger.Print(styles.Success.Render("✓ Workspace initialized"))
+	logger.Print(styles.KV("name", workspace.Runes.Name))
+	logger.Print(styles.KV("planning", workspace.Runes.Planning.Path))
 	return nil
 }
 
@@ -469,21 +471,60 @@ func runStatus() error {
 	if err != nil {
 		return err
 	}
-	logger.Print(styles.Title.Render("Norn Status"))
-	logger.Print(styles.KV("root", w.Root))
-	logger.Print(styles.KV("workspace mode", string(w.Runes.Mode)))
-	logger.Print(styles.KV("planning path", w.Runes.Planning.Path))
-	logger.Print(styles.KV("hydra", fmt.Sprintf("%t", w.Runes.Hydra.Enabled)))
-	logger.Print(styles.KV("opencode", fmt.Sprintf("%t", w.Runes.OpenCode.Enabled)))
-	logger.Print(styles.KV("languages", strings.Join(w.Runes.Tooling.Languages, ", ")))
-	logger.Print(styles.KV("tools", strings.Join(w.Runes.Tooling.Tools, ", ")))
-	logger.Print(styles.KV("frameworks", strings.Join(w.Runes.Tooling.Frameworks, ", ")))
-	logger.Print(styles.KV("fates", fmt.Sprintf("%d", norn.CountFiles(norn.FatesRoot(w), ".yaml"))))
-	logger.Print(styles.KV("tools", fmt.Sprintf("%d", norn.CountFiles(norn.ToolsRoot(w), ".yaml"))))
-	logger.Print(styles.KV("weaves", fmt.Sprintf("%d", countWeaves(w))))
-	logger.Print(styles.KV("threads", fmt.Sprintf("%d", countThreads(w))))
-	logger.Print(styles.KV("patterns", fmt.Sprintf("%d", norn.CountFiles(filepath.Join(norn.SharedPlanningRoot(w), "patterns"), ".md"))))
-	logger.Print(styles.KV("skills", fmt.Sprintf("%d", norn.CountFiles(filepath.Join(norn.SharedPlanningRoot(w), "skills"), ".md"))))
+
+	// Page header
+	logger.Print(styles.PageHeaderText("⚡", "Norn Status"))
+
+	// Workspace section
+	workspacePanel := components.NewPanel("Workspace").
+		AddKV("root", w.Root).
+		AddKV("mode", string(w.Runes.Mode)).
+		AddKV("planning path", w.Runes.Planning.Path)
+	logger.Print(workspacePanel.Render())
+
+	// Integrations section
+	opencodeStatus := "● enabled"
+	if !w.Runes.OpenCode.Enabled {
+		opencodeStatus = "○ disabled"
+	}
+	hydraStatus := "● enabled"
+	if !w.Runes.Hydra.Enabled {
+		hydraStatus = "○ disabled"
+	}
+	integrationsPanel := components.NewPanel("Integrations").
+		AddLine(fmt.Sprintf("OpenCode: %s", opencodeStatus)).
+		AddLine(fmt.Sprintf("Hydra:    %s", hydraStatus))
+	logger.Print(integrationsPanel.Render())
+
+	// Artifacts section
+	fatesCount := norn.CountFiles(norn.FatesRoot(w), ".yaml")
+	toolsCount := norn.CountFiles(norn.ToolsRoot(w), ".yaml")
+	weavesCount := countWeaves(w)
+	threadsCount := countThreads(w)
+	patternsCount := norn.CountFiles(filepath.Join(norn.SharedPlanningRoot(w), "patterns"), ".md")
+	skillsCount := norn.CountFiles(filepath.Join(norn.SharedPlanningRoot(w), "skills"), ".md")
+
+	artifactsPanel := components.NewPanel("Artifacts").
+		AddLine(fmt.Sprintf("Fates:    %-4d  Weaves:  %d", fatesCount, weavesCount)).
+		AddLine(fmt.Sprintf("Threads:  %-4d  Tools:   %d", threadsCount, toolsCount)).
+		AddLine(fmt.Sprintf("Patterns: %-4d  Skills:  %d", patternsCount, skillsCount))
+	logger.Print(artifactsPanel.Render())
+
+	// Stack section
+	if len(w.Runes.Tooling.Languages) > 0 || len(w.Runes.Tooling.Tools) > 0 || len(w.Runes.Tooling.Frameworks) > 0 {
+		stackPanel := components.NewPanel("Stack")
+		if len(w.Runes.Tooling.Languages) > 0 {
+			stackPanel = stackPanel.AddKV("languages", strings.Join(w.Runes.Tooling.Languages, " · "))
+		}
+		if len(w.Runes.Tooling.Tools) > 0 {
+			stackPanel = stackPanel.AddKV("tools", strings.Join(w.Runes.Tooling.Tools, " · "))
+		}
+		if len(w.Runes.Tooling.Frameworks) > 0 {
+			stackPanel = stackPanel.AddKV("frameworks", strings.Join(w.Runes.Tooling.Frameworks, " · "))
+		}
+		logger.Print(stackPanel.Render())
+	}
+
 	return nil
 }
 
@@ -498,13 +539,32 @@ func runDetect() error {
 	if err != nil {
 		return err
 	}
-	logger.Print(styles.Title.Render("Detection"))
-	logger.Print(styles.KV("languages", strings.Join(detected.Languages, ", ")))
-	logger.Print(styles.KV("tools", strings.Join(detected.Tools, ", ")))
-	logger.Print(styles.KV("frameworks", strings.Join(detected.Frameworks, ", ")))
-	if len(detected.Locations) > 0 {
-		logger.Print(styles.KV("locations", strings.Join(detected.Locations, ", ")))
+
+	// Page header
+	logger.Print(styles.PageHeaderText("🔍", "Detection Report"))
+
+	// Summary section
+	summaryPanel := components.NewPanel("Summary")
+	if len(detected.Languages) > 0 {
+		summaryPanel = summaryPanel.AddKV("languages", strings.Join(detected.Languages, " · "))
 	}
+	if len(detected.Tools) > 0 {
+		summaryPanel = summaryPanel.AddKV("tools", strings.Join(detected.Tools, " · "))
+	}
+	if len(detected.Frameworks) > 0 {
+		summaryPanel = summaryPanel.AddKV("frameworks", strings.Join(detected.Frameworks, " · "))
+	}
+	logger.Print(summaryPanel.Render())
+
+	// Locations section
+	if len(detected.Locations) > 0 {
+		locationsPanel := components.NewPanel(fmt.Sprintf("Projects Found: %d", len(detected.Locations)))
+		for _, loc := range detected.Locations {
+			locationsPanel = locationsPanel.AddLine(fmt.Sprintf("  📍 %s", loc))
+		}
+		logger.Print(locationsPanel.Render())
+	}
+
 	return nil
 }
 
@@ -521,10 +581,15 @@ func runFates(args []string) error {
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render("Fates"))
-		for _, item := range items {
-			logger.Print(styles.KV(item.Name, item.Description))
+		if len(items) == 0 {
+			logger.Print(components.NewPanel("👤 Fates").AddLine(styles.EmptyStateText("No fates configured. Run 'norn fates add' to create one.")).Render())
+			return nil
 		}
+		fatesPanel := components.NewPanel(fmt.Sprintf("👤 Fates (%d)", len(items)))
+		for _, item := range items {
+			fatesPanel = fatesPanel.AddLine(fmt.Sprintf("▸ %s: %s", styles.Label.Render(item.Name), item.Description))
+		}
+		logger.Print(fatesPanel.Render())
 		return nil
 	}
 	if args[0] == "show" {
@@ -553,11 +618,16 @@ func runFates(args []string) error {
 		if err != nil {
 			return err
 		}
-		rendered, err := fates.RenderOpenCode(item, norn.ToolsRoot(w))
-		if err != nil {
-			return err
+		fatePanel := components.NewPanel(fmt.Sprintf("👤 %s", item.Name)).
+			AddKV("description", item.Description).
+			AddKV("model", item.Model).
+			AddKV("temperature", item.Temperature).
+			AddKV("allow edit", fmt.Sprintf("%t", item.AllowEdit))
+		logger.Print(fatePanel.Render())
+		if item.Body != "" {
+			bodyPanel := components.NewPanel("Body").AddLine(item.Body)
+			logger.Print(bodyPanel.Render())
 		}
-		logger.Print(rendered)
 		return nil
 	}
 	if len(args) == 1 && args[0] == "add" {
@@ -694,7 +764,7 @@ func runFatesAddNonInteractive(w norn.Workspace, name, description string) error
 	if err := fates.Save(norn.FatesRoot(w), item); err != nil {
 		return err
 	}
-	logger.Info("fate created", "name", name)
+	logger.Print(styles.Success.Render(fmt.Sprintf("✓ Fate '%s' created", name)))
 	return fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w))
 }
 
@@ -762,7 +832,7 @@ func runFatesEditNonInteractive(w norn.Workspace, name string, sets []string) er
 	if err := fates.Save(norn.FatesRoot(w), item); err != nil {
 		return err
 	}
-	logger.Info("fate updated", "name", name)
+	logger.Print(styles.Success.Render(fmt.Sprintf("✓ Fate '%s' updated", name)))
 	return fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w))
 }
 
@@ -780,10 +850,21 @@ func runDocCollection(kind string, args []string) error {
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render(strings.Title(kind)))
-		for _, item := range items {
-			logger.Print(styles.KV(item.ID, item.Title))
+		icon := "📄"
+		if kind == "skills" {
+			icon = "🎯"
+		} else if kind == "patterns" {
+			icon = "📋"
 		}
+		if len(items) == 0 {
+			logger.Print(components.NewPanel(fmt.Sprintf("%s %s", icon, strings.Title(kind))).AddLine(styles.EmptyStateText(fmt.Sprintf("No %s available. Run 'norn %s add' to create one.", kind, kind))).Render())
+			return nil
+		}
+		docPanel := components.NewPanel(fmt.Sprintf("%s %s (%d)", icon, strings.Title(kind), len(items)))
+		for _, item := range items {
+			docPanel = docPanel.AddLine(fmt.Sprintf("▸ %s: %s", styles.Label.Render(item.ID), item.Title))
+		}
+		logger.Print(docPanel.Render())
 		return nil
 	}
 	if len(args) >= 3 && args[0] == "add" {
@@ -816,8 +897,20 @@ func runDocCollection(kind string, args []string) error {
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render(doc.Title))
-		logger.Print(doc.Body)
+		icon := "📄"
+		if kind == "skills" {
+			icon = "🎯"
+		} else if kind == "patterns" {
+			icon = "📋"
+		}
+		docPanel := components.NewPanel(fmt.Sprintf("%s %s", icon, doc.Title)).
+			AddKV("id", doc.ID).
+			AddKV("summary", doc.Summary)
+		logger.Print(docPanel.Render())
+		if doc.Body != "" {
+			bodyPanel := components.NewPanel("Content").AddLine(doc.Body)
+			logger.Print(bodyPanel.Render())
+		}
 		return nil
 	}
 	if args[0] == "edit" {
@@ -930,7 +1023,7 @@ func runDocEditNonInteractive(kind, root, id string, sets []string) error {
 	if err := saveDoc(kind, root, doc); err != nil {
 		return err
 	}
-	logger.Info(kind+" updated", "id", id)
+	logger.Print(styles.Success.Render(fmt.Sprintf("✓ %s '%s' updated", strings.Title(kind), id)))
 	return nil
 }
 
@@ -948,10 +1041,22 @@ func runTools(args []string) error {
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render("Tools"))
-		for _, item := range items {
-			logger.Print(styles.KV(item.ID, fmt.Sprintf("%s [%s]", item.Command, strings.Join(item.Roles, ", "))))
+		if len(items) == 0 {
+			logger.Print(components.NewPanel("🔧 Tools").AddLine(styles.EmptyStateText("No tools configured. Run 'norn tools add' to create one.")).Render())
+			return nil
 		}
+		toolsPanel := components.NewPanel(fmt.Sprintf("🔧 Tools (%d)", len(items)))
+		for _, item := range items {
+			line := fmt.Sprintf("▸ %s: %s", styles.Label.Render(item.ID), item.Title)
+			if item.Category != "" {
+				line += fmt.Sprintf(" [%s]", item.Category)
+			}
+			if item.Risk != "" {
+				line += " " + styles.StatusBadgeFor(item.Risk)
+			}
+			toolsPanel = toolsPanel.AddLine(line)
+		}
+		logger.Print(toolsPanel.Render())
 		return nil
 	}
 	if len(args) >= 4 && args[0] == "add" {
@@ -987,16 +1092,17 @@ func runTools(args []string) error {
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render(item.Title))
-		logger.Print(styles.KV("ID", item.ID))
-		logger.Print(styles.KV("Category", item.Category))
-		logger.Print(styles.KV("Command", item.Command))
-		logger.Print(styles.KV("Pattern", item.Pattern))
-		logger.Print(styles.KV("Risk", item.Risk))
-		logger.Print(styles.KV("Roles", strings.Join(item.Roles, ", ")))
+		toolPanel := components.NewPanel(fmt.Sprintf("🔧 %s", item.Title)).
+			AddKV("id", item.ID).
+			AddKV("category", item.Category).
+			AddKV("command", item.Command).
+			AddKV("pattern", item.Pattern).
+			AddKV("risk", item.Risk).
+			AddKV("roles", strings.Join(item.Roles, ", "))
 		if item.Description != "" {
-			logger.Print(styles.KV("Description", item.Description))
+			toolPanel = toolPanel.AddKV("description", item.Description)
 		}
+		logger.Print(toolPanel.Render())
 		return nil
 	}
 	if args[0] == "edit" {
@@ -1153,7 +1259,7 @@ func runToolsEditNonInteractive(w norn.Workspace, root, id string, sets []string
 	if err := toolstore.Save(root, item); err != nil {
 		return err
 	}
-	logger.Info("command updated", "id", id)
+	logger.Print(styles.Success.Render(fmt.Sprintf("✓ Tool '%s' updated", id)))
 	return fates.ExportOpenCode(norn.FatesRoot(w), root, norn.OpenCodeAgentsRoot(w))
 }
 
@@ -1171,10 +1277,16 @@ func runWeaves(args []string) error {
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render("Weaves"))
-		for _, item := range items {
-			logger.Print(styles.KV(item.ID, item.Title))
+		if len(items) == 0 {
+			logger.Print(components.NewPanel("🧵 Weaves").AddLine(styles.EmptyStateText("No weaves yet. Run 'norn weaves add' to create one.")).Render())
+			return nil
 		}
+		weavesPanel := components.NewPanel(fmt.Sprintf("🧵 Weaves (%d)", len(items)))
+		for _, item := range items {
+			line := fmt.Sprintf("▸ %s: %s", styles.Label.Render(item.ID), item.Title)
+			weavesPanel = weavesPanel.AddLine(line)
+		}
+		logger.Print(weavesPanel.Render())
 		return nil
 	}
 	if len(args) >= 3 && args[0] == "add" {
@@ -1233,8 +1345,14 @@ func runWeaves(args []string) error {
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render(doc.Title))
-		logger.Print(doc.Body)
+		weavePanel := components.NewPanel(fmt.Sprintf("🧵 %s", doc.Title)).
+			AddKV("id", doc.ID).
+			AddKV("summary", doc.Summary)
+		logger.Print(weavePanel.Render())
+		if doc.Body != "" {
+			bodyPanel := components.NewPanel("Content").AddLine(doc.Body)
+			logger.Print(bodyPanel.Render())
+		}
 		return nil
 	}
 	if args[0] == "remove" {
@@ -1304,10 +1422,15 @@ func runThreads(args []string) error {
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render("Threads"))
-		for _, item := range items {
-			logger.Print(styles.KV(item.ID, item.Title))
+		if len(items) == 0 {
+			logger.Print(components.NewPanel("🧶 Threads").AddLine(styles.EmptyStateText("No threads in this weave. Run 'norn threads add' to create one.")).Render())
+			return nil
 		}
+		threadsPanel := components.NewPanel(fmt.Sprintf("🧶 Threads in %s (%d)", weaveID, len(items)))
+		for _, item := range items {
+			threadsPanel = threadsPanel.AddLine(fmt.Sprintf("▸ %s: %s", styles.Label.Render(item.ID), item.Title))
+		}
+		logger.Print(threadsPanel.Render())
 		return nil
 	}
 	if len(args) >= 4 && args[0] == "add" {
@@ -1363,8 +1486,15 @@ func runThreads(args []string) error {
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render(doc.Title))
-		logger.Print(doc.Body)
+		threadPanel := components.NewPanel(fmt.Sprintf("🧶 %s", doc.Title)).
+			AddKV("id", doc.ID).
+			AddKV("weave", weaveID).
+			AddKV("summary", doc.Summary)
+		logger.Print(threadPanel.Render())
+		if doc.Body != "" {
+			bodyPanel := components.NewPanel("Content").AddLine(doc.Body)
+			logger.Print(bodyPanel.Render())
+		}
 		return nil
 	}
 	if args[0] == "remove" {
@@ -1523,7 +1653,9 @@ func runChatExport(args []string) error {
 	if err := opencode.ExportConfig(w, targetDir); err != nil {
 		return err
 	}
-	logger.Info("opencode exported", "agents", norn.OpenCodeAgentsRoot(w), "config", filepath.Join(targetDir, "norn-opencode.json"))
+	logger.Print(styles.Success.Render("✓ OpenCode configuration exported"))
+	logger.Print(styles.KV("agents", norn.OpenCodeAgentsRoot(w)))
+	logger.Print(styles.KV("config", filepath.Join(targetDir, "norn-opencode.json")))
 	return nil
 }
 
@@ -1550,7 +1682,7 @@ func runChatAssist(args []string) error {
 		p := ""
 		form := huh.NewForm(
 			huh.NewGroup(
-				huh.NewText().Title("What would you like help with?").Description("Describe what you want the AI to generate or help with.").Value(&p),
+				huh.NewText().Title("What would you like help with?").Description("Describe what you want the AI to generate or help with. Use Alt+Enter or Ctrl+J for new lines.").Value(&p),
 			),
 		)
 		if err := form.Run(); err != nil {
@@ -1613,17 +1745,18 @@ func runChatAssist(args []string) error {
 		return err
 	}
 	if !confirmed {
-		logger.Info("assistance discarded")
+		logger.Print(styles.Dimmed.Render("◌ Assistance discarded"))
 		return nil
 	}
 	// Save artifacts
+	savedCount := 0
 	for _, item := range assist.Weaves {
 		item.ID = slug(item.Title)
 		item.Body = weaves.DefaultBody(item.Title, item.Summary)
 		if err := weaves.SaveToSurface(norn.SharedPlanningRoot(w), item); err != nil {
 			logger.Warn("failed to save weave", "title", item.Title, "error", err)
 		} else {
-			logger.Info("weave saved", "id", item.ID)
+			savedCount++
 		}
 	}
 	for _, item := range assist.Patterns {
@@ -1631,7 +1764,7 @@ func runChatAssist(args []string) error {
 		if err := saveDoc("patterns", filepath.Join(norn.SharedPlanningRoot(w), "patterns"), item); err != nil {
 			logger.Warn("failed to save pattern", "title", item.Title, "error", err)
 		} else {
-			logger.Info("pattern saved", "id", item.ID)
+			savedCount++
 		}
 	}
 	for _, item := range assist.Skills {
@@ -1639,7 +1772,7 @@ func runChatAssist(args []string) error {
 		if err := saveDoc("skills", filepath.Join(norn.SharedPlanningRoot(w), "skills"), item); err != nil {
 			logger.Warn("failed to save skill", "title", item.Title, "error", err)
 		} else {
-			logger.Info("skill saved", "id", item.ID)
+			savedCount++
 		}
 	}
 	for _, item := range assist.Tools {
@@ -1652,13 +1785,16 @@ func runChatAssist(args []string) error {
 		if err := toolstore.Save(norn.ToolsRoot(w), item); err != nil {
 			logger.Warn("failed to save tool", "id", item.ID, "error", err)
 		} else {
-			logger.Info("tool saved", "id", item.ID)
+			savedCount++
 		}
 	}
 	if len(assist.Tools) > 0 {
 		if err := fates.ExportOpenCode(norn.FatesRoot(w), norn.ToolsRoot(w), norn.OpenCodeAgentsRoot(w)); err != nil {
 			logger.Warn("failed to export opencode", "error", err)
 		}
+	}
+	if savedCount > 0 {
+		logger.Print(styles.Success.Render(fmt.Sprintf("✓ %d artifact(s) saved", savedCount)))
 	}
 	return nil
 }
@@ -1843,28 +1979,25 @@ func promptArtifactSelection(title string, items []ArtifactItem) (string, error)
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].ID < items[j].ID
 	})
-	options := make([]huh.Option[string], 0, len(items))
+
+	// Convert to RichList items
+	richItems := make([]components.RichListItem, 0, len(items))
 	for _, item := range items {
-		label := item.ID
-		if item.Title != "" {
-			label = fmt.Sprintf("%s — %s", item.ID, item.Title)
-		}
-		options = append(options, huh.NewOption(label, item.ID))
+		richItems = append(richItems, components.RichListItem{
+			ID:       item.ID,
+			Title:    item.ID,
+			Subtitle: item.Title,
+			Detail:   item.Summary,
+		})
 	}
-	selected := items[0].ID
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title(title).
-				Description(fmt.Sprintf("%d available. Type to filter.", len(items))).
-				Options(options...).
-				Value(&selected),
-		),
-	)
-	if err := form.Run(); err != nil {
+
+	// Use RichList for interactive selection with filtering
+	rl := components.NewRichList(richItems).WithTitle(title)
+	selected, err := rl.Run()
+	if err != nil {
 		return "", err
 	}
-	return selected, nil
+	return selected.ID, nil
 }
 
 // promptWeaveSelection prompts the user to select a weave from the workspace.

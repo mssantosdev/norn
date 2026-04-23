@@ -163,7 +163,7 @@ func rootHelp() HelpTopic {
 	return HelpTopic{
 		Name:        "norn",
 		Description: "Weave-aware multi-agent harness",
-		Version:     "0.0.3",
+		Version:     "0.0.4",
 		Usage:       "norn <command> [flags]",
 		Commands: []CommandHelp{
 			{
@@ -292,23 +292,27 @@ func chatHelp() HelpTopic {
 			{
 				Name:        "assist",
 				Description: "Get AI assistance for planning artifacts",
-				Usage:       "norn chat assist [--prompt=<prompt>]",
+				Usage:       "norn chat assist [--prompt=<prompt>] [--type=weaves|patterns|skills|tools|all]",
 				Flags: []FlagHelp{
 					{Name: "--prompt=<text>", Description: "What to ask the AI to generate"},
+					{Name: "--type=<type>", Description: "Artifact type to generate (weaves, patterns, skills, tools, all)"},
 				},
 				Examples: []string{
 					"norn chat assist --prompt=\"Generate starter patterns for a Go API\"",
+					"norn chat assist --prompt=\"Create test tools\" --type=tools",
 				},
 			},
 			{
 				Name:        "preview",
 				Description: "Preview AI-generated artifacts without saving",
-				Usage:       "norn chat preview --prompt=<prompt>",
+				Usage:       "norn chat preview --prompt=<prompt> [--type=weaves|patterns|skills|tools|all]",
 				Flags: []FlagHelp{
 					{Name: "--prompt=<text>", Description: "What to ask the AI to generate"},
+					{Name: "--type=<type>", Description: "Artifact type to generate (weaves, patterns, skills, tools, all)"},
 				},
 				Examples: []string{
 					"norn chat preview --prompt=\"Generate deployment skills\"",
+					"norn chat preview --prompt=\"Create test tools\" --type=tools",
 				},
 			},
 		},

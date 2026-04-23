@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -48,6 +49,7 @@ func (s *Spinner) Finish() {
 
 // RunWithSpinner executes a function while displaying a spinner message.
 // The spinner runs in a goroutine and stops when the function completes.
+// On completion, it shows a morph animation from spinner to checkmark.
 func RunWithSpinner(message string, fn func()) {
 	s := NewSpinner(message)
 	fmt.Println(s.View())
@@ -59,6 +61,12 @@ func RunWithSpinner(message string, fn func()) {
 	}()
 
 	<-done
-	// Clear the spinner line
-	fmt.Print("\r\033[K")
+
+	// Morph animation: spinner → spinner+check → checkmark
+	morphFrames := []string{"◐", "◑", "✓"}
+	for _, frame := range morphFrames {
+		fmt.Printf("\r%s %s", lipgloss.NewStyle().Foreground(themes.Current.Success).Render(frame), message)
+		time.Sleep(50 * time.Millisecond)
+	}
+	fmt.Println() // New line after completion
 }

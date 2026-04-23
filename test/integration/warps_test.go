@@ -29,13 +29,13 @@ func TestWarpsCRUD(t *testing.T) {
 	showOutput := captureStdout(t, func() error {
 		return cli.Run([]string{"warps", "show", "api-warp"})
 	})
-	if !strings.Contains(showOutput, "title: API Warp") || !strings.Contains(showOutput, "status: active") {
+	if !strings.Contains(showOutput, "API Warp") || !strings.Contains(showOutput, "status: active") {
 		t.Fatalf("expected warp show output, got:\n%s", showOutput)
 	}
 	listOutput := captureStdout(t, func() error {
 		return cli.Run([]string{"warps", "list"})
 	})
-	if !strings.Contains(listOutput, "api-warp") || !strings.Contains(listOutput, "API Warp [active]") {
+	if !strings.Contains(listOutput, "api-warp") || !strings.Contains(listOutput, "API Warp") {
 		t.Fatalf("expected warp list output, got:\n%s", listOutput)
 	}
 	if err := cli.Run([]string{"warps", "remove", "api-warp"}); err != nil {
@@ -68,10 +68,10 @@ func TestWarpRuntimeView(t *testing.T) {
 	output := captureStdout(t, func() error {
 		return cli.Run([]string{"warps", "list", "--view=runtime"})
 	})
-	if !strings.Contains(output, "API Warp [active]") || !strings.Contains(output, "planning-surface") || !strings.Contains(output, "add-weaves-cli") {
+	if !strings.Contains(output, "API Warp") || !strings.Contains(output, "planning-surface") || !strings.Contains(output, "add-weaves-cli") {
 		t.Fatalf("expected runtime warp view output, got:\n%s", output)
 	}
-	if !strings.Contains(output, "owner=marcus") || !strings.Contains(output, "state=review") {
+	if !strings.Contains(output, "owner=marcus") || !strings.Contains(output, "review") {
 		t.Fatalf("expected runtime assignment metadata, got:\n%s", output)
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/charmbracelet/huh"
 	"github.com/mssantosdev/norn/internal/norn"
@@ -400,14 +399,39 @@ func parseRuneFormatArg(args []string) (string, error) {
 
 func renderRuneResolutionTable(resolution norn.RuneResolution) string {
 	var b strings.Builder
-	w := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, styles.TableHeader.Render("Field")+"\t"+styles.TableHeader.Render("Value")+"\t"+styles.TableHeader.Render("Origin"))
+
+	// Header
+	b.WriteString(styles.TableHeader.Render("Field"))
+	b.WriteString("  ")
+	b.WriteString(styles.TableHeader.Render("Value"))
+	b.WriteString("  ")
+	b.WriteString(styles.TableHeader.Render("Origin"))
+	b.WriteString("\n")
+	b.WriteString(styles.RenderDivider(0))
+	b.WriteString("\n")
+
+	// Rows
 	for _, path := range norn.ResolvedRunePaths() {
 		value := norn.FieldValueString(norn.ResolvedFieldValue(resolution, path))
 		origin := strings.Join(resolution.Origins[path], "; ")
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", path, value, origin)
+
+		// Color-code origin
+		originStyled := styles.Dimmed.Render(origin)
+		if strings.Contains(origin, "local") {
+			originStyled = styles.Warning.Render(origin)
+		} else if strings.Contains(origin, "workspace") {
+			originStyled = styles.Success.Render(origin)
+		} else if strings.Contains(origin, "global") {
+			originStyled = styles.Title.Render(origin)
+		}
+
+		b.WriteString(fmt.Sprintf("%-24s %-24s %s\n",
+			styles.Label.Render(path),
+			value,
+			originStyled,
+		))
 	}
-	_ = w.Flush()
+
 	return b.String()
 }
 

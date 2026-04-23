@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/mssantosdev/norn/internal/norn"
 	"github.com/mssantosdev/norn/internal/spindle"
+	"github.com/mssantosdev/norn/internal/ui/components"
 	"github.com/mssantosdev/norn/internal/ui/logger"
 	"github.com/mssantosdev/norn/internal/ui/styles"
 	"github.com/mssantosdev/norn/internal/warps"
@@ -30,18 +31,22 @@ func runWarps(args []string) error {
 		if err != nil {
 			return err
 		}
-		logger.Print(styles.Title.Render("Warps"))
 		if len(items) == 0 {
-			logger.Print(styles.KV("active", "none"))
+			logger.Print(components.NewPanel("🌐 Warps").AddLine(styles.EmptyStateText("No warps yet. Run 'norn warps add' to create one.")).Render())
 			return nil
 		}
+		warpsPanel := components.NewPanel(fmt.Sprintf("🌐 Warps (%d)", len(items)))
 		for _, item := range items {
-			label := item.Title
-			if strings.TrimSpace(item.Status) != "" {
-				label = fmt.Sprintf("%s [%s]", label, item.Status)
+			line := fmt.Sprintf("▸ %s: %s", styles.Label.Render(item.ID), item.Title)
+			if item.Status != "" {
+				line += " " + styles.StatusBadgeFor(item.Status)
 			}
-			logger.Print(styles.KV(item.ID, label))
+			if item.Owner != "" {
+				line += fmt.Sprintf(" (owner: %s)", item.Owner)
+			}
+			warpsPanel = warpsPanel.AddLine(line)
 		}
+		logger.Print(warpsPanel.Render())
 		return nil
 	}
 	if len(args) >= 2 && args[0] == "assign" {
@@ -124,12 +129,17 @@ func runWarps(args []string) error {
 		if err != nil {
 			return err
 		}
-		data, err := yaml.Marshal(item)
-		if err != nil {
-			return err
+		warpPanel := components.NewPanel(fmt.Sprintf("🌐 %s", item.Title)).
+			AddKV("id", item.ID).
+			AddKV("status", item.Status).
+			AddKV("owner", item.Owner).
+			AddKV("root", item.Root).
+			AddKV("branch", item.Branch)
+		logger.Print(warpPanel.Render())
+		if item.Notes != "" {
+			notesPanel := components.NewPanel("Notes").AddLine(item.Notes)
+			logger.Print(notesPanel.Render())
 		}
-		logger.Print(styles.Title.Render(item.Title))
-		logger.Print(string(data))
 		return nil
 	}
 	if args[0] == "remove" {
@@ -164,25 +174,50 @@ func runWarpRuntimeView(root string) error {
 	if err != nil {
 		return err
 	}
-	logger.Print(styles.Title.Render("Warp Runtime View"))
+	logger.Print(styles.PageHeaderText("🌐", "Warp Runtime View"))
 	if len(views) == 0 {
-		logger.Print(styles.KV("active", "none"))
+		logger.Print(components.NewPanel("Active Warps").AddLine(styles.EmptyStateText("No active warps. Run 'norn warps add' to create one.")).Render())
 		return nil
 	}
+
+	// Build tree from warp views
+	treeItems := make([]components.TreeItem, 0)
 	for _, view := range views {
-		summary := fmt.Sprintf("%s [%s]", view.Warp.Title, view.Warp.Status)
-		logger.Print(styles.KV(view.Warp.ID, summary))
-		if len(view.Weaves) > 0 {
-			for _, item := range view.Weaves {
-				logger.Print(styles.KV("  weave", fmt.Sprintf("%s (%s) owner=%s state=%s", item.ID, view.Warp.ID, item.Owner, item.State)))
-			}
+		warpStatus := view.Warp.Status
+		if warpStatus == "" {
+			warpStatus = "active"
 		}
-		if len(view.Threads) > 0 {
-			for _, item := range view.Threads {
-				logger.Print(styles.KV("  thread", fmt.Sprintf("%s (%s) owner=%s state=%s", item.ID, view.Warp.ID, item.Owner, item.State)))
-			}
+		treeItems = append(treeItems, components.TreeItem{
+			ID:     view.Warp.ID,
+			Label:  view.Warp.Title,
+			Detail: fmt.Sprintf("[%s]", warpStatus),
+			Status: warpStatus,
+			Depth:  0,
+		})
+		for _, weave := range view.Weaves {
+			treeItems = append(treeItems, components.TreeItem{
+				ID:       weave.ID,
+				ParentID: view.Warp.ID,
+				Label:    weave.ID,
+				Detail:   fmt.Sprintf("owner=%s", weave.Owner),
+				Status:   weave.State,
+				Depth:    1,
+			})
+		}
+		for _, thread := range view.Threads {
+			treeItems = append(treeItems, components.TreeItem{
+				ID:       thread.ID,
+				ParentID: view.Warp.ID,
+				Label:    thread.ID,
+				Detail:   fmt.Sprintf("owner=%s", thread.Owner),
+				Status:   thread.State,
+				Depth:    1,
+			})
 		}
 	}
+
+	rootNode := components.TreeFromItems(treeItems)
+	logger.Print(components.RunStaticTree(rootNode))
 	return nil
 }
 

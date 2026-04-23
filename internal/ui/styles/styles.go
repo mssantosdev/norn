@@ -3,6 +3,7 @@ package styles
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mssantosdev/norn/internal/ui/themes"
@@ -27,25 +28,39 @@ var (
 )
 
 var (
-	AppHeader      lipgloss.Style
-	Title          lipgloss.Style
-	Subtitle       lipgloss.Style
-	Label          lipgloss.Style
-	Dimmed         lipgloss.Style
-	Prompt         lipgloss.Style
-	Success        lipgloss.Style
-	Error          lipgloss.Style
-	Warning        lipgloss.Style
-	Box            lipgloss.Style
-	HelpKey        lipgloss.Style
-	HelpDesc       lipgloss.Style
-	TableHeader    lipgloss.Style
-	TableCell      lipgloss.Style
-	StatusBadge    lipgloss.Style
-	SuccessBadge   lipgloss.Style
-	WarningBadge   lipgloss.Style
-	ErrorBadge     lipgloss.Style
-	SelectionBadge lipgloss.Style
+	AppHeader           lipgloss.Style
+	Title               lipgloss.Style
+	Subtitle            lipgloss.Style
+	Label               lipgloss.Style
+	Dimmed              lipgloss.Style
+	Prompt              lipgloss.Style
+	Success             lipgloss.Style
+	Error               lipgloss.Style
+	Warning             lipgloss.Style
+	Box                 lipgloss.Style
+	HelpKey             lipgloss.Style
+	HelpDesc            lipgloss.Style
+	TableHeader         lipgloss.Style
+	TableCell           lipgloss.Style
+	StatusBadge         lipgloss.Style
+	SuccessBadge        lipgloss.Style
+	WarningBadge        lipgloss.Style
+	ErrorBadge          lipgloss.Style
+	SelectionBadge      lipgloss.Style
+	SectionBox          lipgloss.Style
+	PageHeader          lipgloss.Style
+	Divider             lipgloss.Style
+	SurfacePanel        lipgloss.Style
+	TreeGuide           lipgloss.Style
+	TreeBranch          lipgloss.Style
+	TreeLeaf            lipgloss.Style
+	NotificationSuccess lipgloss.Style
+	NotificationError   lipgloss.Style
+	NotificationWarning lipgloss.Style
+	FormProgress        lipgloss.Style
+	FormProgressFill    lipgloss.Style
+	EmptyState          lipgloss.Style
+	Hint                lipgloss.Style
 )
 
 func init() {
@@ -87,6 +102,69 @@ func ApplyTheme(theme themes.Theme) {
 	WarningBadge = lipgloss.NewStyle().Background(Orange).Foreground(BgDark).Bold(true).Padding(0, 1)
 	ErrorBadge = lipgloss.NewStyle().Background(Red).Foreground(BgDark).Bold(true).Padding(0, 1)
 	SelectionBadge = lipgloss.NewStyle().Background(Blue).Foreground(BgDark).Bold(true).Padding(0, 1)
+
+	// Facelift v0.0.4 — new styles
+	SectionBox = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(theme.Border).
+		Background(theme.Surface).
+		Padding(1, 2)
+
+	PageHeader = lipgloss.NewStyle().
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(theme.Primary).
+		Background(theme.Surface).
+		Padding(1, 2).
+		Bold(true)
+
+	Divider = lipgloss.NewStyle().
+		Foreground(theme.Border)
+
+	SurfacePanel = lipgloss.NewStyle().
+		Background(theme.Surface).
+		Padding(1, 2)
+
+	TreeGuide = lipgloss.NewStyle().
+		Foreground(theme.Border)
+
+	TreeBranch = lipgloss.NewStyle().
+		Foreground(theme.Primary)
+
+	TreeLeaf = lipgloss.NewStyle().
+		Foreground(theme.Foreground)
+
+	NotificationSuccess = lipgloss.NewStyle().
+		Background(theme.Success).
+		Foreground(theme.Background).
+		Bold(true).
+		Padding(0, 2)
+
+	NotificationError = lipgloss.NewStyle().
+		Background(theme.Error).
+		Foreground(theme.Background).
+		Bold(true).
+		Padding(0, 2)
+
+	NotificationWarning = lipgloss.NewStyle().
+		Background(theme.Warning).
+		Foreground(theme.Background).
+		Bold(true).
+		Padding(0, 2)
+
+	FormProgress = lipgloss.NewStyle().
+		Foreground(theme.Muted)
+
+	FormProgressFill = lipgloss.NewStyle().
+		Foreground(theme.Primary).
+		Bold(true)
+
+	EmptyState = lipgloss.NewStyle().
+		Foreground(theme.Muted).
+		Italic(true)
+
+	Hint = lipgloss.NewStyle().
+		Foreground(theme.Muted).
+		Italic(true)
 }
 
 func TerminalWidth() int {
@@ -103,4 +181,36 @@ func Badge(text string) string {
 
 func KV(label, value string) string {
 	return fmt.Sprintf("%s %s", Label.Render(label+":"), value)
+}
+
+func RenderDivider(width int) string {
+	if width <= 0 {
+		width = TerminalWidth()
+	}
+	return Divider.Render(strings.Repeat("─", width))
+}
+
+func StatusBadgeFor(status string) string {
+	switch strings.ToLower(status) {
+	case "active", "enabled", "done", "success", "complete":
+		return SuccessBadge.Render(status)
+	case "paused", "blocked", "warning", "caution", "review":
+		return WarningBadge.Render(status)
+	case "error", "failed", "disabled":
+		return ErrorBadge.Render(status)
+	default:
+		return StatusBadge.Render(status)
+	}
+}
+
+func PageHeaderText(icon, title string) string {
+	return PageHeader.Render(fmt.Sprintf("%s %s", icon, title))
+}
+
+func SectionTitle(text string) string {
+	return Title.Render(text)
+}
+
+func EmptyStateText(hint string) string {
+	return EmptyState.Render(fmt.Sprintf("🌱 %s", hint))
 }
